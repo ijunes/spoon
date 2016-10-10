@@ -56,6 +56,7 @@ public final class SpoonRunner {
   private final Set<String> serials;
   private final Set<String> skipDevices;
   private final boolean shard;
+  private final boolean smartShard;
   private final String classpath;
   private final IRemoteAndroidTestRunner.TestSize testSize;
   private boolean codeCoverage;
@@ -67,8 +68,8 @@ public final class SpoonRunner {
 
   private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk,
       File output, boolean debug, boolean noAnimations, int adbTimeoutMillis, Set<String> serials,
-      Set<String> skipDevices,
-      boolean shard, String classpath, List<String> instrumentationArgs, String className,
+      Set<String> skipDevices, boolean shard, boolean smartShard,
+      String classpath, List<String> instrumentationArgs, String className,
       String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       boolean failIfNoDeviceConnected, List<ITestRunListener> testRunListeners, boolean sequential,
       File initScript, boolean grantAll, boolean terminateAdb, boolean codeCoverage) {
@@ -89,6 +90,8 @@ public final class SpoonRunner {
     this.codeCoverage = codeCoverage;
     this.serials = ImmutableSet.copyOf(serials);
     this.shard = shard;
+    this.smartShard = smartShard;
+    logInfo("Smart shard is %b", smartShard);
     this.failIfNoDeviceConnected = failIfNoDeviceConnected;
     this.testRunListeners = testRunListeners;
     this.terminateAdb = terminateAdb;
@@ -330,6 +333,7 @@ public final class SpoonRunner {
     private boolean terminateAdb = true;
     private boolean codeCoverage;
     private boolean shard = false;
+    private boolean smartShard = false;
 
     /** Identifying title for this execution. */
     public Builder setTitle(String title) {
@@ -484,6 +488,11 @@ public final class SpoonRunner {
       return this;
     }
 
+    public Builder setSmartShard(boolean smartShard) {
+      this.smartShard = smartShard;
+      return this;
+    }
+
     public Builder addTestRunListener(ITestRunListener testRunListener) {
       checkNotNull(testRunListener, "TestRunListener cannot be null.");
       testRunListeners.add(testRunListener);
@@ -508,7 +517,7 @@ public final class SpoonRunner {
       }
 
       return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, debug,
-          noAnimations, adbTimeoutMillis, serials, skipDevices, shard, classpath,
+          noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard, classpath,
           instrumentationArgs, className, methodName, testSize, failIfNoDeviceConnected,
           testRunListeners, sequential, initScript, grantAll, terminateAdb, codeCoverage);
     }
@@ -601,6 +610,10 @@ public final class SpoonRunner {
         description = "Automatically shard across all specified serials") //
     public boolean shard;
 
+    @Parameter(names = { "--smart-shard" },
+            description = "Automatically shard across all specified serials base on time cost") //
+    public boolean smartShard;
+
     @Parameter(names = { "--debug" }, hidden = true) //
     public boolean debug;
 
@@ -672,7 +685,8 @@ public final class SpoonRunner {
         .setCodeCoverage(parsedArgs.codeCoverage)
         .setClassName(parsedArgs.className)
         .setMethodName(parsedArgs.methodName)
-        .setShard(parsedArgs.shard);
+        .setShard(parsedArgs.shard)
+        .setShard(parsedArgs.smartShard);
 
     if (parsedArgs.serials == null || parsedArgs.serials.isEmpty()) {
       builder.useAllAttachedDevices();
