@@ -47,6 +47,7 @@ public final class SpoonRunner {
   private final File applicationApk;
   private final File instrumentationApk;
   private final File output;
+  private final File srcDir;
   private final boolean debug;
   private final boolean noAnimations;
   private final int adbTimeoutMillis;
@@ -67,8 +68,8 @@ public final class SpoonRunner {
   private final boolean grantAll;
 
   private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk,
-      File output, boolean debug, boolean noAnimations, int adbTimeoutMillis, Set<String> serials,
-      Set<String> skipDevices, boolean shard, boolean smartShard,
+      File output, File srcDir, boolean debug, boolean noAnimations, int adbTimeoutMillis,
+      Set<String> serials, Set<String> skipDevices, boolean shard, boolean smartShard,
       String classpath, List<String> instrumentationArgs, String className,
       String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       boolean failIfNoDeviceConnected, List<ITestRunListener> testRunListeners, boolean sequential,
@@ -78,6 +79,8 @@ public final class SpoonRunner {
     this.applicationApk = applicationApk;
     this.instrumentationApk = instrumentationApk;
     this.output = output;
+    this.srcDir = srcDir;
+    logInfo("src dir is %s", srcDir);
     this.debug = debug;
     this.noAnimations = noAnimations;
     this.adbTimeoutMillis = adbTimeoutMillis;
@@ -315,6 +318,7 @@ public final class SpoonRunner {
     private File applicationApk;
     private File instrumentationApk;
     private File output;
+    private File srcDir;
     private boolean debug = false;
     private Set<String> serials;
     private Set<String> skipDevices;
@@ -370,6 +374,13 @@ public final class SpoonRunner {
     public Builder setOutputDirectory(File output) {
       checkNotNull(output, "Output directory not specified.");
       this.output = output;
+      return this;
+    }
+
+    /** Path to source file directory. */
+    public Builder setSrcDirectory(File srcDir) {
+      //checkNotNull(output, "Output directory not specified.");
+      this.srcDir = srcDir;
       return this;
     }
 
@@ -516,8 +527,8 @@ public final class SpoonRunner {
             "Must specify class name if you're specifying a method name.");
       }
 
-      return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, debug,
-          noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard, classpath,
+      return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, srcDir,
+          debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard, classpath,
           instrumentationArgs, className, methodName, testSize, failIfNoDeviceConnected,
           testRunListeners, sequential, initScript, grantAll, terminateAdb, codeCoverage);
     }
@@ -565,6 +576,10 @@ public final class SpoonRunner {
     @Parameter(names = { "--output" }, description = "Output path",
         converter = FileConverter.class) //
     public File output = cleanFile(SpoonRunner.DEFAULT_OUTPUT_DIRECTORY);
+
+    @Parameter(names = { "--src-dir" }, description = "Source file path",
+            converter = FileConverter.class) //
+    public File srcDir = cleanFile(null);
 
     @Parameter(names = { "--sdk" }, description = "Path to Android SDK") //
     public File sdk = cleanFile(System.getenv("ANDROID_HOME"));
@@ -672,6 +687,7 @@ public final class SpoonRunner {
         .setApplicationApk(parsedArgs.apk)
         .setInstrumentationApk(parsedArgs.testApk)
         .setOutputDirectory(parsedArgs.output)
+        .setSrcDirectory(parsedArgs.srcDir)
         .setDebug(parsedArgs.debug)
         .setAndroidSdk(parsedArgs.sdk)
         .setNoAnimations(parsedArgs.noAnimations)
@@ -686,7 +702,7 @@ public final class SpoonRunner {
         .setClassName(parsedArgs.className)
         .setMethodName(parsedArgs.methodName)
         .setShard(parsedArgs.shard)
-        .setShard(parsedArgs.smartShard);
+        .setSmartShard(parsedArgs.smartShard);
 
     if (parsedArgs.serials == null || parsedArgs.serials.isEmpty()) {
       builder.useAllAttachedDevices();
