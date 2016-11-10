@@ -14,6 +14,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.nio.file.Paths;  
+import org.atteo.xmlcombiner.XmlCombiner;
+import org.xml.sax.SAXParseException;
 
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logInfo;
@@ -233,8 +236,8 @@ public class Soup {
   }
 
   public static void main(String[] args) {
-    File srcDir = new File("./androidTest");
-    File reportDir = new File("./report");
+    File srcDir = new File("./");
+    File reportDir = new File("./");
 
     Soup soup = Soup.getInstance(srcDir, reportDir);
     String[] result;
@@ -242,6 +245,26 @@ public class Soup {
     while ((result = soup.takeSpoon()) != null) {
       System.out.println(result[0] + "#" + result[1]);
     }
-    // soup.closeLogFile();
+    
+    try {
+      // soup.closeLogFile();
+      // create combiner
+      XmlCombiner combiner = new XmlCombiner("name");
+
+      // combine files
+      try {
+
+        combiner.combine(Paths.get("1.xml"));
+      } catch (Exception e) {
+      	
+      } 
+      combiner.combine(Paths.get("2.xml"));
+
+      // store the result
+      combiner.buildDocument(Paths.get("1.xml"));
+    } catch (Exception e) {
+    	e.printStackTrace();
+    }
+    System.out.println("=== Finish ===");
   }
 }

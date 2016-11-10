@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import com.squareup.spoon.soup.Soup;
+import org.atteo.xmlcombiner.XmlCombiner;
 
 import static com.android.ddmlib.FileListingService.FileEntry;
 import static com.android.ddmlib.SyncService.getNullProgressMonitor;
@@ -285,13 +286,14 @@ public final class SpoonDeviceRunner {
 
       List<ITestRunListener> listeners = new ArrayList<ITestRunListener>();
       listeners.add(new SpoonTestRunListener(result, debug, testIdentifierAdapter));
-      listeners.add(new XmlTestRunListener(junitReport));
+      listeners.add(new XmlTestRunListener(junitReport, smartShard));
       if (testRunListeners != null) {
         listeners.addAll(testRunListeners);
       }
 
       if (soup != null) {
         String[] spoonOfSoup = null;
+        result.setIsMultipeTest(true);
 
         while ((spoonOfSoup = soup.takeSpoon()) != null) {
           setTestClassOrMethod(runner, spoonOfSoup[0], spoonOfSoup[1]);
