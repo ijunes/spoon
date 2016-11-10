@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
+import com.squareup.spoon.soup.Soup;
 
 import static com.android.ddmlib.FileListingService.FileEntry;
 import static com.android.ddmlib.SyncService.getNullProgressMonitor;
@@ -77,6 +78,10 @@ public final class SpoonDeviceRunner {
   private boolean codeCoverage;
   private final List<ITestRunListener> testRunListeners;
   private final boolean grantAll;
+  private final boolean smartShard;
+  private final File srcDir;
+  private final File reportDir;
+  private Soup soup;
 
   /**
    * Create a test runner for a single device.
@@ -99,7 +104,8 @@ public final class SpoonDeviceRunner {
       int numShards, boolean debug, boolean noAnimations, int adbTimeout, String classpath,
       SpoonInstrumentationInfo instrumentationInfo, List<String> instrumentationArgs,
       String className, String methodName, IRemoteAndroidTestRunner.TestSize testSize,
-      List<ITestRunListener> testRunListeners, boolean codeCoverage, boolean grantAll) {
+      List<ITestRunListener> testRunListeners, boolean codeCoverage, boolean grantAll,
+      boolean smartShard, File srcDir, File reportDir) {
     this.sdk = sdk;
     this.apk = apk;
     this.testApk = testApk;
@@ -124,6 +130,12 @@ public final class SpoonDeviceRunner {
     this.coverageDir = FileUtils.getFile(output, COVERAGE_DIR, serial);
     this.testRunListeners = testRunListeners;
     this.grantAll = grantAll;
+    this.smartShard = smartShard;
+    this.srcDir = srcDir;
+    this.reportDir = reportDir;
+    if (this.smartShard && this.srcDir != null) {
+      soup = Soup.getInstance(this.srcDir, reportDir);
+    }
   }
 
   /** Serialize to disk and start {@link #main(String...)} in another process. */
@@ -187,7 +199,6 @@ public final class SpoonDeviceRunner {
     logDebug(debug, "[%s] setDeviceDetails %s", serial, deviceDetails);
 
     DdmPreferences.setTimeOut(adbTimeout);
-
     // Now install the main application and the instrumentation application.
     try {
       String extraArgument = "";
@@ -209,7 +220,6 @@ public final class SpoonDeviceRunner {
       return result.markInstallAsFailed(
               "Unable to install instrumentation APK.").addException(e).build();
     }
-
     // If this is Android Marshmallow or above grant WRITE_EXTERNAL_STORAGE
     if (deviceDetails.getApiLevel() >= DeviceDetails.MARSHMALLOW_API_LEVEL) {
       String appPackage = instrumentationInfo.getApplicationPackage();
@@ -232,7 +242,6 @@ public final class SpoonDeviceRunner {
 
     // Create the output directory, if it does not already exist.
     work.mkdirs();
-
     // Initiate device logging.
     SpoonDeviceLogger deviceLogger = new SpoonDeviceLogger(device);
 
@@ -264,27 +273,37 @@ public final class SpoonDeviceRunner {
         addCodeCoverageInstrumentationArgs(runner, device);
       }
       // Add the sharding instrumentation arguments if necessary
-      if (numShards != 0) {
+      if (numShards != 0 && !smartShard) {
         addShardingInstrumentationArgs(runner);
       }
 
-      if (!isNullOrEmpty(className)) {
-        if (isNullOrEmpty(methodName)) {
-          runner.setClassName(className);
-        } else {
-          runner.setMethodName(className, methodName);
-        }
-      }
       if (testSize != null) {
         runner.setTestSize(testSize);
       }
+
+      setTestClassOrMethod(runner, className, methodName);
+
       List<ITestRunListener> listeners = new ArrayList<ITestRunListener>();
       listeners.add(new SpoonTestRunListener(result, debug, testIdentifierAdapter));
       listeners.add(new XmlTestRunListener(junitReport));
       if (testRunListeners != null) {
         listeners.addAll(testRunListeners);
       }
-      runner.run(listeners);
+
+      if (soup != null) {
+        String[] spoonOfSoup = null;
+
+        while ((spoonOfSoup = soup.takeSpoon()) != null) {
+          setTestClassOrMethod(runner, spoonOfSoup[0], spoonOfSoup[1]);
+          try {
+            runner.run(listeners);
+          } catch (Exception e) {
+            result.addException(e);
+          }
+        }
+      } else {
+        runner.run(listeners);
+      }
     } catch (Exception e) {
       result.addException(e);
     }
@@ -307,6 +326,18 @@ public final class SpoonDeviceRunner {
     logDebug(debug, "Done running for [%s]", serial);
 
     return result.build();
+  }
+
+  private void setTestClassOrMethod(RemoteAndroidTestRunner runner, String className,
+               String methodName) {
+    if (!isNullOrEmpty(className)) {
+      if (isNullOrEmpty(methodName)) {
+        runner.setClassName(className);
+      } else {
+        runner.setMethodName(className, methodName);
+      }
+    }
+
   }
 
   private void addCodeCoverageInstrumentationArgs(RemoteAndroidTestRunner runner, IDevice device)

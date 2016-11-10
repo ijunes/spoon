@@ -5,22 +5,22 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /** Simple logger interface. */
-final class SpoonLogger {
+public final class SpoonLogger {
   private static final ThreadLocal<DateFormat> DATE_FORMAT = new ThreadLocal<DateFormat>() {
     @Override protected DateFormat initialValue() {
       return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     }
   };
 
-  static void logError(String message, Object... args) {
+  public static void logError(String message, Object... args) {
     System.err.println(getPrefix() + String.format(message, args));
   }
 
-  static void logInfo(String message, Object... args) {
+  public static void logInfo(String message, Object... args) {
     System.out.println(getPrefix() + String.format(message, args));
   }
 
-  static void logDebug(boolean debug, String message, Object... args) {
+  public static void logDebug(boolean debug, String message, Object... args) {
     if (debug) System.out.println(getPrefix() + String.format(message, args));
   }
 

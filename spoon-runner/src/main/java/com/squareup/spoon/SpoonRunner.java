@@ -66,9 +66,10 @@ public final class SpoonRunner {
   private final boolean terminateAdb;
   private File initScript;
   private final boolean grantAll;
+  private File reportDir;
 
   private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk,
-      File output, File srcDir, boolean debug, boolean noAnimations, int adbTimeoutMillis,
+      File output, File srcDir, File reportDir, boolean debug, boolean noAnimations, int adbTimeoutMillis,
       Set<String> serials, Set<String> skipDevices, boolean shard, boolean smartShard,
       String classpath, List<String> instrumentationArgs, String className,
       String methodName, IRemoteAndroidTestRunner.TestSize testSize,
@@ -80,6 +81,7 @@ public final class SpoonRunner {
     this.instrumentationApk = instrumentationApk;
     this.output = output;
     this.srcDir = srcDir;
+    this.reportDir = reportDir;
     logInfo("src dir is %s", srcDir);
     this.debug = debug;
     this.noAnimations = noAnimations;
@@ -308,7 +310,7 @@ public final class SpoonRunner {
     return new SpoonDeviceRunner(androidSdk, applicationApk, instrumentationApk, output, serial,
         shardIndex, numShards, debug, noAnimations, adbTimeoutMillis, classpath, testInfo,
         instrumentationArgs, className, methodName, testSize, testRunListeners, codeCoverage,
-        grantAll);
+        grantAll, smartShard, srcDir, reportDir);
   }
 
   /** Build a test suite for the specified devices and configuration. */
@@ -319,6 +321,7 @@ public final class SpoonRunner {
     private File instrumentationApk;
     private File output;
     private File srcDir;
+    private File reportDir;
     private boolean debug = false;
     private Set<String> serials;
     private Set<String> skipDevices;
@@ -381,6 +384,13 @@ public final class SpoonRunner {
     public Builder setSrcDirectory(File srcDir) {
       //checkNotNull(output, "Output directory not specified.");
       this.srcDir = srcDir;
+      return this;
+    }
+    
+    /** Path to source file directory. */
+    public Builder setReportDirectory(File reportDir) {
+      //checkNotNull(output, "Output directory not specified.");
+      this.reportDir = reportDir;
       return this;
     }
 
@@ -528,8 +538,8 @@ public final class SpoonRunner {
       }
 
       return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, srcDir,
-          debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard, classpath,
-          instrumentationArgs, className, methodName, testSize, failIfNoDeviceConnected,
+          reportDir, debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard, 
+          classpath, instrumentationArgs, className, methodName, testSize, failIfNoDeviceConnected,
           testRunListeners, sequential, initScript, grantAll, terminateAdb, codeCoverage);
     }
   }
@@ -580,6 +590,10 @@ public final class SpoonRunner {
     @Parameter(names = { "--src-dir" }, description = "Source file path",
             converter = FileConverter.class) //
     public File srcDir = cleanFile(null);
+
+    @Parameter(names = { "--report-dir" }, description = "Report file path",
+            converter = FileConverter.class) //
+    public File reportDir = cleanFile(null);
 
     @Parameter(names = { "--sdk" }, description = "Path to Android SDK") //
     public File sdk = cleanFile(System.getenv("ANDROID_HOME"));
@@ -688,6 +702,7 @@ public final class SpoonRunner {
         .setInstrumentationApk(parsedArgs.testApk)
         .setOutputDirectory(parsedArgs.output)
         .setSrcDirectory(parsedArgs.srcDir)
+        .setReportDirectory(parsedArgs.reportDir)
         .setDebug(parsedArgs.debug)
         .setAndroidSdk(parsedArgs.sdk)
         .setNoAnimations(parsedArgs.noAnimations)
