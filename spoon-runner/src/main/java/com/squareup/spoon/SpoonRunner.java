@@ -69,9 +69,9 @@ public final class SpoonRunner {
   private File reportDir;
 
   private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk,
-      File output, File srcDir, File reportDir, boolean debug, boolean noAnimations, int adbTimeoutMillis,
-      Set<String> serials, Set<String> skipDevices, boolean shard, boolean smartShard,
-      String classpath, List<String> instrumentationArgs, String className,
+      File output, File srcDir, File reportDir, boolean debug, boolean noAnimations,
+      int adbTimeoutMillis, Set<String> serials, Set<String> skipDevices, boolean shard,
+      boolean smartShard, String classpath, List<String> instrumentationArgs, String className,
       String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       boolean failIfNoDeviceConnected, List<ITestRunListener> testRunListeners, boolean sequential,
       File initScript, boolean grantAll, boolean terminateAdb, boolean codeCoverage) {
@@ -386,7 +386,7 @@ public final class SpoonRunner {
       this.srcDir = srcDir;
       return this;
     }
-    
+
     /** Path to source file directory. */
     public Builder setReportDirectory(File reportDir) {
       //checkNotNull(output, "Output directory not specified.");
@@ -538,7 +538,7 @@ public final class SpoonRunner {
       }
 
       return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, srcDir,
-          reportDir, debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard, 
+          reportDir, debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard,
           classpath, instrumentationArgs, className, methodName, testSize, failIfNoDeviceConnected,
           testRunListeners, sequential, initScript, grantAll, terminateAdb, codeCoverage);
     }

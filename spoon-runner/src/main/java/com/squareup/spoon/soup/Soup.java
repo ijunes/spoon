@@ -27,11 +27,13 @@ class FileHelper {
 
   static void listFiles(List<File> files, File dir) {
     File[] listFiles = dir.listFiles();
-    for (File f : listFiles) {
-      if (f.isFile()) {
-        files.add(f);
-      } else if (f.isDirectory()) {
-        listFiles(files, f);
+    if (listFiles != null) {
+      for (File f : listFiles) {
+        if (f.isFile()) {
+          files.add(f);
+        } else if (f.isDirectory()) {
+          listFiles(files, f);
+        }
       }
     }
   }
