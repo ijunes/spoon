@@ -157,7 +157,9 @@ public class Soup {
   }
 
   private void scanReportFile(File file) {
-    String pattern = "testcase\\s+name=\"(\\S+)\"\\s+classname=\"(\\S+)\"\\s+time=\"(\\S+)\"";
+    //String pattern = "testcase\\s+name=\"(\\S+)\"\\s+classname=\"(\\S+)\"\\s+time=\"(\\S+)\"";
+  	//TODO: classname and name may not be in order
+    String pattern = "testcase\\s+classname=\"(\\S+)\"\\s+name=\"(\\S+)\"\\s+time=\"(\\S+)\"";
     Pattern p = Pattern.compile(pattern);
 
     try {
@@ -169,9 +171,9 @@ public class Soup {
       while ((line = br.readLine()) != null) {
         Matcher matcher = p.matcher(line);
         if (matcher.find()) {
-          TestIdentifier ti = new TestIdentifier(matcher.group(2), matcher.group(1));
+          TestIdentifier ti = new TestIdentifier(matcher.group(1), matcher.group(2));
           float usedTime = Float.parseFloat(matcher.group(3));
-
+          logDebug(debug, "Found test: " + ti);
           for (TestIdentifier t : tests) {
             // logDebug(debug, t + " === " + ti);
             if (t.equals(ti)) {

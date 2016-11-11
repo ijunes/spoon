@@ -322,7 +322,8 @@ public final class SpoonDeviceRunner {
     try {
       logDebug(debug, "About to grab screenshots and prepare output for [%s]", serial);
       pullDeviceFiles(device);
-      if (codeCoverage) {
+      if (codeCoverage && !smartShardMode()) { 
+      	// will pull and merge coverage file at each when in smart shard mode 
         pullCoverageFile(device);
       }
 

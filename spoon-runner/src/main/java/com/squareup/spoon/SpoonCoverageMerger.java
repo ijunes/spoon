@@ -23,7 +23,7 @@ final class SpoonCoverageMerger {
   }
   
   public SpoonCoverageMerger(File dstFile) {
-  	super();
+  	this();
   	this.dstFile = dstFile;
   }
   
