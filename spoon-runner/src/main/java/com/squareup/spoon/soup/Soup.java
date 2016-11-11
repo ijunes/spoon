@@ -64,7 +64,7 @@ public class Soup {
     this.reportDir = reportDir;
     this.debug = debug;
     this.tests = new LinkedList();
-    this.testcasePath = new File(workDir.getAbsolutePath(), this.testcasePath).getAbsolutePath();
+    //this.testcasePath = new File(workDir.getAbsolutePath(), this.testcasePath).getAbsolutePath();
     
     tryCreateTestsFile();
     
@@ -73,7 +73,7 @@ public class Soup {
     	
     	try {
 				locker = blockRequestLock();
-				
+
 				if (testsFile.length() <= 0) {
 		      scanSrcDir();
 		      scanReportDir();
@@ -83,7 +83,7 @@ public class Soup {
 		      createLogFile();
 		      outputAllTests();
 		      closeLogFile();
-		      
+
 		      writeTests();
 				}
 	      
@@ -109,6 +109,7 @@ public class Soup {
   	for (int i = 0; i < 100; i++) {
     	try {
     		FileLock locker = channel.lock();
+    		logDebug(debug, "request done");
     		return locker;
     	} catch(OverlappingFileLockException  e) {
     		logDebug(debug, "Waiting others releasing the lock");
@@ -146,11 +147,16 @@ public class Soup {
   				new File(testcasePath).createNewFile();
   				testsFile = new RandomAccessFile(testcasePath, "rw");
   			} catch (IOException e1) {
-  				logDebug(debug, "Create file : " + testcasePath + " failed");
+  				logDebug(debug, "Create file : %s failed. Error: %s", testcasePath, e1.getMessage());
   			}
   		}
+    	
+    	if (testsFile != null) {
+    		return ;
+    	}
+    	
     	try {
-				Thread.sleep(1);
+				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				logDebug(debug, "sleep is interrupted");
 			}
@@ -299,7 +305,9 @@ public class Soup {
     if (soup == null) {
       synchronized (Soup.class) {
         if (soup == null) {
+        	logDebug(true, "creating");
           soup = new Soup(srcDir, reportDir, workDir);
+          logDebug(true, "create done");
         }
       }
     }
