@@ -128,9 +128,7 @@ public final class DeviceResult {
       if (!isMultipleTest) {
         checkArgument(start == 0, "Start already called.");
       }
-      if (start == 0) {
-        start = System.nanoTime();
-      }
+      start = System.nanoTime();
       return this;
     }
 
@@ -140,11 +138,14 @@ public final class DeviceResult {
         checkArgument(duration == -1, "End was already called.");
       }
       long thisTestTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - start);
+    	duration = thisTestTime;
+    	/*
       if (isMultipleTest) {
       	duration += thisTestTime;
       } else {
       	duration = thisTestTime;
       }
+      */
       return this;
     }
 

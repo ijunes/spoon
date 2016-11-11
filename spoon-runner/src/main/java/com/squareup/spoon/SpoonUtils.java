@@ -1,6 +1,7 @@
 package com.squareup.spoon;
 
 import com.android.ddmlib.AndroidDebugBridge;
+import com.android.ddmlib.CollectingOutputReceiver;
 import com.android.ddmlib.DdmPreferences;
 import com.android.ddmlib.IDevice;
 import com.google.gson.Gson;
@@ -122,6 +123,12 @@ public final class SpoonUtils {
     AndroidDebugBridge adb = AndroidDebugBridge.createBridge(adbPath.getAbsolutePath(), false);
     waitForAdb(adb, timeOutMs);
     return adb;
+  }
+  
+  public static String getExternalStoragePath(IDevice device, final String path) throws Exception {
+    CollectingOutputReceiver pathNameOutputReceiver = new CollectingOutputReceiver();
+    device.executeShellCommand("echo $EXTERNAL_STORAGE", pathNameOutputReceiver);
+    return pathNameOutputReceiver.getOutput().trim() + "/" + path;
   }
 
   static void createAnimatedGif(List<File> testScreenshots, File animatedGif) throws IOException {

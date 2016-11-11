@@ -176,6 +176,10 @@ public final class SpoonDeviceRunner {
       logDebug(debug, "[%s] %s %s", serial, tag, s);
     }
   }
+  
+  private boolean smartShardMode() {
+  	return soup != null;
+  }
 
   /** Execute instrumentation on the target device and return a result summary. */
   public DeviceResult run(AndroidDebugBridge adb) {
@@ -274,7 +278,7 @@ public final class SpoonDeviceRunner {
         addCodeCoverageInstrumentationArgs(runner, device);
       }
       // Add the sharding instrumentation arguments if necessary
-      if (numShards != 0 && !smartShard) {
+      if (numShards != 0 && !smartShardMode()) {
         addShardingInstrumentationArgs(runner);
       }
 
@@ -286,12 +290,15 @@ public final class SpoonDeviceRunner {
 
       List<ITestRunListener> listeners = new ArrayList<ITestRunListener>();
       listeners.add(new SpoonTestRunListener(result, debug, testIdentifierAdapter));
-      listeners.add(new XmlTestRunListener(junitReport, smartShard));
+      listeners.add(new XmlTestRunListener(junitReport, smartShardMode()));
       if (testRunListeners != null) {
         listeners.addAll(testRunListeners);
       }
+      if (smartShardMode()) {
+      	listeners.add(new CovFileTestRunListener(device, coverageDir, debug));
+      }
 
-      if (soup != null) {
+      if (smartShardMode()) {
         String[] spoonOfSoup = null;
         result.setIsMultipeTest(true);
 
