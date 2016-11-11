@@ -4,9 +4,11 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -14,9 +16,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Paths;  
 import org.atteo.xmlcombiner.XmlCombiner;
-import org.xml.sax.SAXParseException;
 
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logInfo;
@@ -44,32 +49,117 @@ class FileHelper {
 
 public class Soup {
   private static Soup soup;
-
+  private String testcasePath = "soup";
   private File srcDir;
   private File reportDir;
+  private RandomAccessFile testsFile;
   private LinkedList<TestIdentifier> tests;
   private boolean debug;
-
+  private FileLock locker;
+  private FileChannel channel;
   private BufferedWriter logFileWriter;
 
-  private Soup(File srcDir, File reportDir, boolean debug) {
+  private Soup(File srcDir, File reportDir, File workDir, boolean debug) {
     this.srcDir = srcDir;
     this.reportDir = reportDir;
     this.debug = debug;
     this.tests = new LinkedList();
+    this.testcasePath = new File(workDir.getAbsolutePath(), this.testcasePath).getAbsolutePath();
+    
+    tryCreateTestsFile();
+    
+    if (testsFile != null) {
+    	channel = testsFile.getChannel();
+    	
+    	try {
+				locker = blockRequestLock();
+				
+				if (testsFile.length() <= 0) {
+		      scanSrcDir();
+		      scanReportDir();
 
-    scanSrcDir();
-    scanReportDir();
+		      Collections.sort(this.tests, new TestComparator());
 
-    Collections.sort(this.tests, new TestComparator());
-
-    createLogFile();
-    outputAllTests();
-    closeLogFile();
+		      createLogFile();
+		      outputAllTests();
+		      closeLogFile();
+		      
+		      writeTests();
+				}
+	      
+			} catch (IOException e) {
+				logDebug(debug, e.getMessage(), e);
+				
+			} finally {
+				try {
+					if (locker != null) {
+						locker.release();
+					}
+					/*if (channel.isOpen()) {
+						channel.close();
+					}*/
+				} catch (IOException e) {
+					logDebug(debug, e.getMessage(), e);
+				}
+			}
+    }
+  }
+  
+  private FileLock blockRequestLock() throws IOException {
+  	for (int i = 0; i < 100; i++) {
+    	try {
+    		FileLock locker = channel.lock();
+    		return locker;
+    	} catch(OverlappingFileLockException  e) {
+    		logDebug(debug, "Waiting others releasing the lock");
+    	} catch (IOException e) {
+    		e.printStackTrace();
+    	}
+    	
+    	try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+  	}
+  	return channel.lock();
+  }
+  
+  private void writeTests() {
+  	for (TestIdentifier ti : tests) {
+  		try {
+  			String s = ti.toString() + "\n";
+				//channel.write(ByteBuffer.wrap(s.getBytes()));
+  			testsFile.writeBytes(s);
+			} catch (IOException e) {
+				logDebug(debug, e.getMessage(), e);
+			}
+  	}
+  }
+  
+  private void tryCreateTestsFile() {
+  	for (int i = 0; i < 100; i++) {
+    	try {
+  			testsFile = new RandomAccessFile(testcasePath, "rw");
+  		} catch (FileNotFoundException e) {
+  			try {
+  				new File(testcasePath).createNewFile();
+  				testsFile = new RandomAccessFile(testcasePath, "rw");
+  			} catch (IOException e1) {
+  				logDebug(debug, "Create file : " + testcasePath + " failed");
+  			}
+  		}
+    	try {
+				Thread.sleep(1);
+			} catch (InterruptedException e) {
+				logDebug(debug, "sleep is interrupted");
+			}
+  	}
+    
   }
 
-  private Soup(File srcDir, File reportDir) {
-    this(srcDir, reportDir, true);
+  private Soup(File srcDir, File reportDir, File workDir) {
+    this(srcDir, reportDir, workDir, true);
   }
 
   private void createLogFile() {
@@ -205,11 +295,11 @@ public class Soup {
     }
   }
 
-  public static Soup getInstance(File srcDir, File reportDir) {
+  public static Soup getInstance(File srcDir, File reportDir, File workDir) {
     if (soup == null) {
       synchronized (Soup.class) {
         if (soup == null) {
-          soup = new Soup(srcDir, reportDir);
+          soup = new Soup(srcDir, reportDir, workDir);
         }
       }
     }
@@ -218,14 +308,45 @@ public class Soup {
 
   public String[] takeSpoon() {
     String[] result = null;
-    synchronized (tests) {
-      TestIdentifier test = tests.poll();
-      if (test != null) {
+    
+    try {
+			locker = blockRequestLock();
+			
+			testsFile.seek(0);
+			String firstLine = testsFile.readLine();
+			
+			if (firstLine != null) {
         result = new String[2];
-        result[0] = test.getClassName();
-        result[1] = test.getTestName();
-      }
-    }
+        String[] tokens = firstLine.split("#");
+        result[0] = tokens[0];
+        result[1] = tokens[1];
+        logDebug(debug, "%s has been taken", firstLine);
+
+  			StringBuffer sb = new StringBuffer();
+  			String line = "";
+  			while((line = testsFile.readLine()) != null){
+  				line += "\n";
+          sb.append(line); 
+  			} 
+  			//logDebug(true, sb.toString());
+  			testsFile.getChannel().truncate(0);
+  			testsFile.writeBytes(sb.toString());
+			}
+			
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+			
+		} finally {
+			if (locker != null) {
+				try {
+					locker.release();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+    
     return result;
   }
 
@@ -236,18 +357,54 @@ public class Soup {
       e.printStackTrace();
     }
   }
-
-  public static void main(String[] args) {
-    File srcDir = new File("./");
+  
+  private static void takingSpoon() {
+    File srcDir = new File("./filemanager");
     File reportDir = new File("./");
-
-    Soup soup = Soup.getInstance(srcDir, reportDir);
+    File workDir = new File("./");
+    
+  	Soup soup = Soup.getInstance(srcDir, null, workDir);
     String[] result;
 
+    System.out.println("=== Start taking ===");
+    int count = 0;
     while ((result = soup.takeSpoon()) != null) {
-      System.out.println(result[0] + "#" + result[1]);
+    	count++;
+      logInfo(Thread.currentThread().getName() + ": (count:" + count + ")" + result[0] + "#" + result[1]);
+      try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
     }
+  }
+
+  public static void main(String[] args) {
+    //takingSpoon();
     
+    Thread thread1 = new Thread(new Runnable() {
+    	public void run() {
+    		takingSpoon();
+    	}
+    });
+    
+    Thread thread2 = new Thread(new Runnable() {
+    	public void run() {
+    		takingSpoon();
+    	}
+    });
+    
+    thread1.start();
+    thread2.start();
+    try {
+    	thread1.join();
+    	thread2.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+    
+    /*
     try {
       // soup.closeLogFile();
       // create combiner
@@ -267,6 +424,7 @@ public class Soup {
     } catch (Exception e) {
     	e.printStackTrace();
     }
+    */
     System.out.println("=== Finish ===");
   }
 }

@@ -82,7 +82,7 @@ public final class SpoonDeviceRunner {
   private final boolean smartShard;
   private final File srcDir;
   private final File reportDir;
-  private Soup soup;
+  // private Soup soup;
 
   /**
    * Create a test runner for a single device.
@@ -134,9 +134,9 @@ public final class SpoonDeviceRunner {
     this.smartShard = smartShard;
     this.srcDir = srcDir;
     this.reportDir = reportDir;
-    if (this.smartShard && this.srcDir != null) {
+    /*if (this.smartShard && this.srcDir != null) {
       soup = Soup.getInstance(this.srcDir, reportDir);
-    }
+    }*/
   }
 
   /** Serialize to disk and start {@link #main(String...)} in another process. */
@@ -177,15 +177,20 @@ public final class SpoonDeviceRunner {
     }
   }
   
-  private boolean smartShardMode() {
+  /* private boolean smartShardMode() {
   	return soup != null;
-  }
+  } */
 
   /** Execute instrumentation on the target device and return a result summary. */
   public DeviceResult run(AndroidDebugBridge adb) {
     String testPackage = instrumentationInfo.getInstrumentationPackage();
     String testRunner = instrumentationInfo.getTestRunnerClass();
     TestIdentifierAdapter testIdentifierAdapter = TestIdentifierAdapter.fromTestRunner(testRunner);
+    Soup soup = null;
+    
+    if (smartShard && srcDir != null) {
+    	soup = Soup.getInstance(srcDir, reportDir, work);
+    }
 
     logDebug(debug, "InstrumentationInfo: [%s]", instrumentationInfo);
 
@@ -278,7 +283,7 @@ public final class SpoonDeviceRunner {
         addCodeCoverageInstrumentationArgs(runner, device);
       }
       // Add the sharding instrumentation arguments if necessary
-      if (numShards != 0 && !smartShardMode()) {
+      if (numShards != 0 && soup == null) {
         addShardingInstrumentationArgs(runner);
       }
 
@@ -290,15 +295,15 @@ public final class SpoonDeviceRunner {
 
       List<ITestRunListener> listeners = new ArrayList<ITestRunListener>();
       listeners.add(new SpoonTestRunListener(result, debug, testIdentifierAdapter));
-      listeners.add(new XmlTestRunListener(junitReport, smartShardMode()));
+      listeners.add(new XmlTestRunListener(junitReport, (soup != null)));
       if (testRunListeners != null) {
         listeners.addAll(testRunListeners);
       }
-      if (smartShardMode()) {
+      if (soup != null) {
       	listeners.add(new CovFileTestRunListener(device, coverageDir, debug));
       }
 
-      if (smartShardMode()) {
+      if (soup != null) {
         String[] spoonOfSoup = null;
         result.setIsMultipeTest(true);
 
@@ -322,7 +327,7 @@ public final class SpoonDeviceRunner {
     try {
       logDebug(debug, "About to grab screenshots and prepare output for [%s]", serial);
       pullDeviceFiles(device);
-      if (codeCoverage && !smartShardMode()) { 
+      if (codeCoverage && soup == null) { 
       	// will pull and merge coverage file at each when in smart shard mode 
         pullCoverageFile(device);
       }

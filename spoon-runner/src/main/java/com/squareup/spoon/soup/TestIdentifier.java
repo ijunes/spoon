@@ -77,6 +77,6 @@ public class TestIdentifier {
 
   @Override
   public String toString() {
-    return String.format("%s#%s(%f)", getClassName(), getTestName(), getUsedTime());
+    return String.format("%s#%s#%f", getClassName(), getTestName(), getUsedTime());
   }
 }
