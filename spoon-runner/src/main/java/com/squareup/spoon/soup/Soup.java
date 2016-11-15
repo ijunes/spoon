@@ -58,19 +58,12 @@ public class Soup {
   private FileLock locker;
   private FileChannel channel;
   private BufferedWriter logFileWriter;
-  private String cppCovMobilePath;
-  private String gcnoPath;
-  private String cppCovDstPath;
 
-  private Soup(boolean debug, File srcDir, File reportDir, File workDir, String cppCovMobilePath,
-  		String gcnoPath, String cppCovDstPath) {
+  private Soup(boolean debug, File srcDir, File reportDir, File workDir) {
     this.srcDir = srcDir;
     this.reportDir = reportDir;
     this.debug = debug;
     this.tests = new LinkedList();
-    this.cppCovMobilePath = cppCovMobilePath;
-    this.gcnoPath = gcnoPath;
-    this.cppCovDstPath = cppCovDstPath;
     //this.testcasePath = new File(workDir.getAbsolutePath(), this.testcasePath).getAbsolutePath();
     
     tryCreateTestsFile();
@@ -304,12 +297,11 @@ public class Soup {
     }
   }
 
-  public static Soup getInstance(boolean debug, File srcDir, File reportDir, File workDir, String cppCovMobilePath,
-  		String gcnoPath, String cppCovDstPath) {
+  public static Soup getInstance(boolean debug, File srcDir, File reportDir, File workDir) {
     if (soup == null) {
       synchronized (Soup.class) {
         if (soup == null) {
-        	soup = new Soup(debug, srcDir, reportDir, workDir, cppCovMobilePath, gcnoPath, cppCovDstPath);
+        	soup = new Soup(debug, srcDir, reportDir, workDir);
         }
       }
     }
@@ -373,7 +365,7 @@ public class Soup {
     File reportDir = new File("./");
     File workDir = new File("./");
     
-  	Soup soup = Soup.getInstance(true, srcDir, null, workDir, "", "", "");
+  	Soup soup = Soup.getInstance(true, srcDir, null, workDir);
     String[] result;
 
     System.out.println("=== Start taking ===");

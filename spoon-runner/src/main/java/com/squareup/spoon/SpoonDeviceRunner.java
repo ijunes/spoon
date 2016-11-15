@@ -196,7 +196,7 @@ public final class SpoonDeviceRunner {
     Soup soup = null;
     
     if (smartShard && srcDir != null) {
-    	soup = Soup.getInstance(debug, srcDir, reportDir, work, cppCovMobilePath, gcnoPath, cppCovDstPath);
+    	soup = Soup.getInstance(debug, srcDir, reportDir, work);
     }
 
     logDebug(debug, "InstrumentationInfo: [%s]", instrumentationInfo);
