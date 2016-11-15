@@ -82,6 +82,9 @@ public final class SpoonDeviceRunner {
   private final boolean smartShard;
   private final File srcDir;
   private final File reportDir;
+  private final String cppCovMobilePath;
+  private final String gcnoPath;
+  private final String cppCovDstPath;
   // private Soup soup;
 
   /**
@@ -106,7 +109,8 @@ public final class SpoonDeviceRunner {
       SpoonInstrumentationInfo instrumentationInfo, List<String> instrumentationArgs,
       String className, String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       List<ITestRunListener> testRunListeners, boolean codeCoverage, boolean grantAll,
-      boolean smartShard, File srcDir, File reportDir) {
+      boolean smartShard, File srcDir, File reportDir, String cppCovMobilePath, String gcnoPath,
+      String cppCovDstPath) {
     this.sdk = sdk;
     this.apk = apk;
     this.testApk = testApk;
@@ -134,6 +138,9 @@ public final class SpoonDeviceRunner {
     this.smartShard = smartShard;
     this.srcDir = srcDir;
     this.reportDir = reportDir;
+    this.cppCovMobilePath = cppCovMobilePath;
+    this.gcnoPath = gcnoPath;
+    this.cppCovDstPath = cppCovDstPath;
     /*if (this.smartShard && this.srcDir != null) {
       soup = Soup.getInstance(this.srcDir, reportDir);
     }*/
@@ -189,7 +196,7 @@ public final class SpoonDeviceRunner {
     Soup soup = null;
     
     if (smartShard && srcDir != null) {
-    	soup = Soup.getInstance(srcDir, reportDir, work);
+    	soup = Soup.getInstance(debug, srcDir, reportDir, work, cppCovMobilePath, gcnoPath, cppCovDstPath);
     }
 
     logDebug(debug, "InstrumentationInfo: [%s]", instrumentationInfo);

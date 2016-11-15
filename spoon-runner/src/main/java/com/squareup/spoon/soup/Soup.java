@@ -58,12 +58,19 @@ public class Soup {
   private FileLock locker;
   private FileChannel channel;
   private BufferedWriter logFileWriter;
+  private String cppCovMobilePath;
+  private String gcnoPath;
+  private String cppCovDstPath;
 
-  private Soup(File srcDir, File reportDir, File workDir, boolean debug) {
+  private Soup(boolean debug, File srcDir, File reportDir, File workDir, String cppCovMobilePath,
+  		String gcnoPath, String cppCovDstPath) {
     this.srcDir = srcDir;
     this.reportDir = reportDir;
     this.debug = debug;
     this.tests = new LinkedList();
+    this.cppCovMobilePath = cppCovMobilePath;
+    this.gcnoPath = gcnoPath;
+    this.cppCovDstPath = cppCovDstPath;
     //this.testcasePath = new File(workDir.getAbsolutePath(), this.testcasePath).getAbsolutePath();
     
     tryCreateTestsFile();
@@ -162,10 +169,6 @@ public class Soup {
 			}
   	}
     
-  }
-
-  private Soup(File srcDir, File reportDir, File workDir) {
-    this(srcDir, reportDir, workDir, true);
   }
 
   private void createLogFile() {
@@ -301,13 +304,12 @@ public class Soup {
     }
   }
 
-  public static Soup getInstance(File srcDir, File reportDir, File workDir) {
+  public static Soup getInstance(boolean debug, File srcDir, File reportDir, File workDir, String cppCovMobilePath,
+  		String gcnoPath, String cppCovDstPath) {
     if (soup == null) {
       synchronized (Soup.class) {
         if (soup == null) {
-        	logDebug(true, "creating");
-          soup = new Soup(srcDir, reportDir, workDir);
-          logDebug(true, "create done");
+        	soup = new Soup(debug, srcDir, reportDir, workDir, cppCovMobilePath, gcnoPath, cppCovDstPath);
         }
       }
     }
@@ -371,7 +373,7 @@ public class Soup {
     File reportDir = new File("./");
     File workDir = new File("./");
     
-  	Soup soup = Soup.getInstance(srcDir, null, workDir);
+  	Soup soup = Soup.getInstance(true, srcDir, null, workDir, "", "", "");
     String[] result;
 
     System.out.println("=== Start taking ===");

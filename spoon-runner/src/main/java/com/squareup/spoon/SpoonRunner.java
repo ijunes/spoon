@@ -67,11 +67,15 @@ public final class SpoonRunner {
   private File initScript;
   private final boolean grantAll;
   private File reportDir;
+  private String cppCovMobilePath;
+  private String gcnoPath;
+  private String cppCovDstPath;
 
   private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk,
       File output, File srcDir, File reportDir, boolean debug, boolean noAnimations,
       int adbTimeoutMillis, Set<String> serials, Set<String> skipDevices, boolean shard,
-      boolean smartShard, String classpath, List<String> instrumentationArgs, String className,
+      boolean smartShard, String cppCovMobilePath, String gcnoPath, String cppCovDstPath,
+      String classpath, List<String> instrumentationArgs, String className,
       String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       boolean failIfNoDeviceConnected, List<ITestRunListener> testRunListeners, boolean sequential,
       File initScript, boolean grantAll, boolean terminateAdb, boolean codeCoverage) {
@@ -102,6 +106,9 @@ public final class SpoonRunner {
     this.terminateAdb = terminateAdb;
     this.initScript = initScript;
     this.grantAll = grantAll;
+    this.cppCovMobilePath = cppCovMobilePath;
+    this.gcnoPath = gcnoPath;
+    this.cppCovDstPath = cppCovDstPath;
 
     if (sequential) {
       this.threadExecutor = Executors.newSingleThreadExecutor();
@@ -310,7 +317,7 @@ public final class SpoonRunner {
     return new SpoonDeviceRunner(androidSdk, applicationApk, instrumentationApk, output, serial,
         shardIndex, numShards, debug, noAnimations, adbTimeoutMillis, classpath, testInfo,
         instrumentationArgs, className, methodName, testSize, testRunListeners, codeCoverage,
-        grantAll, smartShard, srcDir, reportDir);
+        grantAll, smartShard, srcDir, reportDir, cppCovMobilePath, gcnoPath, cppCovDstPath);
   }
 
   /** Build a test suite for the specified devices and configuration. */
@@ -341,6 +348,10 @@ public final class SpoonRunner {
     private boolean codeCoverage;
     private boolean shard = false;
     private boolean smartShard = false;
+    private String cppCovMobilePath;
+    private String gcnoPath;
+    private String cppCovDstPath;
+    
 
     /** Identifying title for this execution. */
     public Builder setTitle(String title) {
@@ -514,6 +525,21 @@ public final class SpoonRunner {
       return this;
     }
 
+    public Builder setCppCovMobilePath(String path) {
+    	this.cppCovMobilePath = path;
+    	return this;
+    }
+    
+    public Builder setGcnoPath(String path) {
+    	this.gcnoPath = path;
+    	return this;
+    }
+    
+    public Builder setCppCovDstPath(String path) {
+    	this.cppCovDstPath = path;
+    	return this;
+    }
+    
     public Builder addTestRunListener(ITestRunListener testRunListener) {
       checkNotNull(testRunListener, "TestRunListener cannot be null.");
       testRunListeners.add(testRunListener);
@@ -539,8 +565,9 @@ public final class SpoonRunner {
 
       return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, srcDir,
           reportDir, debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard,
-          classpath, instrumentationArgs, className, methodName, testSize, failIfNoDeviceConnected,
-          testRunListeners, sequential, initScript, grantAll, terminateAdb, codeCoverage);
+          cppCovMobilePath, gcnoPath, cppCovDstPath, classpath, instrumentationArgs, className, 
+          methodName, testSize, failIfNoDeviceConnected, testRunListeners, sequential, initScript, 
+          grantAll, terminateAdb, codeCoverage);
     }
   }
 
@@ -642,6 +669,18 @@ public final class SpoonRunner {
     @Parameter(names = { "--smart-shard" },
             description = "Automatically shard across all specified serials base on time cost") //
     public boolean smartShard;
+    
+    @Parameter(names = { "--cpp-cov-mobile-path" },
+        description = "The path of cpp coverage files in mobile") //
+    public String cppCovMobilePath;
+    
+    @Parameter(names = { "--gcno-path" },
+        description = "The path of gcno files in mobile") //
+    public String gcnoPath;
+    
+    @Parameter(names = { "--cpp-cov-dst-path" },
+        description = "The destination path of cpp coverage files") //
+    public String cppCovDstPath;
 
     @Parameter(names = { "--debug" }, hidden = true) //
     public boolean debug;
@@ -717,7 +756,10 @@ public final class SpoonRunner {
         .setClassName(parsedArgs.className)
         .setMethodName(parsedArgs.methodName)
         .setShard(parsedArgs.shard)
-        .setSmartShard(parsedArgs.smartShard);
+        .setSmartShard(parsedArgs.smartShard)
+        .setCppCovMobilePath(parsedArgs.cppCovMobilePath)
+        .setGcnoPath(parsedArgs.gcnoPath)
+        .setCppCovDstPath(parsedArgs.cppCovDstPath);
 
     if (parsedArgs.serials == null || parsedArgs.serials.isEmpty()) {
       builder.useAllAttachedDevices();
