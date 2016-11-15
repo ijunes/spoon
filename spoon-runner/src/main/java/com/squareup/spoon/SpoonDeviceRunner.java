@@ -307,7 +307,8 @@ public final class SpoonDeviceRunner {
         listeners.addAll(testRunListeners);
       }
       if (soup != null) {
-      	listeners.add(new CovFileTestRunListener(device, coverageDir, debug));
+      	listeners.add(new CovFileTestRunListener(device, coverageDir, debug, cppCovMobilePath, 
+      			gcnoPath, cppCovDstPath));
       }
 
       if (soup != null) {

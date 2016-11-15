@@ -50,6 +50,6 @@ final class SpoonCoverageMerger {
   
   public void loadFile(File file) throws IOException {
   	execFileLoader.load(file);
-  	execFileLoader.save(dstFile, false);
+  	execFileLoader.save(dstFile, false); // todo: save at the last load
   }
 }
