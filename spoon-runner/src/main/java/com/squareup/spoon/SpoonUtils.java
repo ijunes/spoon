@@ -10,6 +10,8 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.madgag.gif.fmsware.AnimatedGifEncoder;
+
+
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -27,6 +29,7 @@ import org.apache.commons.io.FileUtils;
 
 import static com.android.ddmlib.FileListingService.FileEntry;
 import static com.android.ddmlib.FileListingService.TYPE_DIRECTORY;
+import static com.squareup.spoon.SpoonLogger.logInfo;
 
 /** Utilities for executing instrumentation tests on devices. */
 public final class SpoonUtils {
@@ -191,5 +194,20 @@ public final class SpoonUtils {
         }
     }
     return val;
+  }
+  
+  public static void deletePath(File path, boolean inclusive) {
+  	logInfo("deletPath:%s (inclusive:%b). ", path.getAbsolutePath(), inclusive);
+    if (path.isDirectory()) {
+      File[] children = path.listFiles();
+      if (children != null) {
+        for (File child : children) {
+          deletePath(child, true);
+        }
+      }
+    }
+    if (inclusive) {
+      path.delete();
+    }
   }
 }

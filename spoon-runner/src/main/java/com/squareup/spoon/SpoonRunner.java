@@ -10,6 +10,8 @@ import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.converters.IParameterSplitter;
 import com.google.common.collect.ImmutableSet;
 import com.squareup.spoon.html.HtmlRenderer;
+import com.squareup.spoon.soup.Soup;
+
 import org.apache.commons.io.FileUtils;
 
 import java.io.BufferedReader;
@@ -162,6 +164,8 @@ public final class SpoonRunner {
 
     try {
       FileUtils.deleteDirectory(output);
+    	SpoonUtils.deletePath(new File(cppCovDstPath), false);
+    	Soup.cleanUpSoup();
     } catch (IOException e) {
       throw new RuntimeException("Unable to clean output directory: " + output, e);
     }

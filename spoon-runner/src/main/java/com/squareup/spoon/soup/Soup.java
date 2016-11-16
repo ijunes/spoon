@@ -23,6 +23,8 @@ import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Paths;  
 import org.atteo.xmlcombiner.XmlCombiner;
 
+import com.android.utils.FileUtils;
+
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logInfo;
 
@@ -49,7 +51,7 @@ class FileHelper {
 
 public class Soup {
   private static Soup soup;
-  private String testcasePath = "soup";
+  private static final String SOUP_FILE_PATH = "soup";
   private File srcDir;
   private File reportDir;
   private RandomAccessFile testsFile;
@@ -58,15 +60,19 @@ public class Soup {
   private FileLock locker;
   private FileChannel channel;
   private BufferedWriter logFileWriter;
-
+  
+  public static void cleanUpSoup() {
+  	new File(SOUP_FILE_PATH).delete();
+  }
+  
   private Soup(boolean debug, File srcDir, File reportDir, File workDir) {
     this.srcDir = srcDir;
     this.reportDir = reportDir;
     this.debug = debug;
     this.tests = new LinkedList();
-    //this.testcasePath = new File(workDir.getAbsolutePath(), this.testcasePath).getAbsolutePath();
+    //this.soupFilePath = new File(workDir, this.soupFilePath).getAbsolutePath();
     
-    tryCreateTestsFile();
+    tryCreateSoupFile();
     
     if (testsFile != null) {
     	channel = testsFile.getChannel();
@@ -138,16 +144,16 @@ public class Soup {
   	}
   }
   
-  private void tryCreateTestsFile() {
+  private void tryCreateSoupFile() {
   	for (int i = 0; i < 100; i++) {
     	try {
-  			testsFile = new RandomAccessFile(testcasePath, "rw");
+  			testsFile = new RandomAccessFile(SOUP_FILE_PATH, "rw");
   		} catch (FileNotFoundException e) {
   			try {
-  				new File(testcasePath).createNewFile();
-  				testsFile = new RandomAccessFile(testcasePath, "rw");
+  				new File(SOUP_FILE_PATH).createNewFile();
+  				testsFile = new RandomAccessFile(SOUP_FILE_PATH, "rw");
   			} catch (IOException e1) {
-  				logDebug(debug, "Create file : %s failed. Error: %s", testcasePath, e1.getMessage());
+  				logDebug(debug, "Create file : %s failed. Error: %s", SOUP_FILE_PATH, e1.getMessage());
   			}
   		}
     	
