@@ -138,8 +138,6 @@ public class CovFileTestRunListener implements ITestRunListener {
 
 	@Override
 	public void testEnded(TestIdentifier arg0, Map<String, String> arg1) {
-		combineCovFiles();
-		pullCppCovFiles();
 	}
 
 	@Override
@@ -155,7 +153,8 @@ public class CovFileTestRunListener implements ITestRunListener {
 
 	@Override
 	public void testRunEnded(long arg0, Map<String, String> arg1) {
-		// TODO Auto-generated method stub
+		combineCovFiles();
+		pullCppCovFiles();
 		
 	}
 

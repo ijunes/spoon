@@ -23,7 +23,7 @@ import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Paths;  
 import org.atteo.xmlcombiner.XmlCombiner;
 
-import com.android.utils.FileUtils;
+import com.squareup.spoon.SpoonUtils;
 
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logInfo;
@@ -59,20 +59,28 @@ public class Soup {
   private boolean debug;
   private FileLock locker;
   private FileChannel channel;
-  private BufferedWriter logFileWriter;
+  private int serialsNum;
+  private static final File TESTCASE_DIR = new File("testcase/");
+  private float totalTime;
   
   public static void cleanUpSoup() {
   	new File(SOUP_FILE_PATH).delete();
+  	SpoonUtils.deletePath(TESTCASE_DIR, false);
   }
   
-  private Soup(boolean debug, File srcDir, File reportDir, File workDir) {
+  private Soup(boolean debug, File srcDir, File reportDir, File workDir, int serialsNum) {
     this.srcDir = srcDir;
     this.reportDir = reportDir;
     this.debug = debug;
     this.tests = new LinkedList();
-    //this.soupFilePath = new File(workDir, this.soupFilePath).getAbsolutePath();
-    
-    tryCreateSoupFile();
+    this.serialsNum = serialsNum;
+    logDebug(debug, "work dir: " + workDir.getAbsolutePath());
+    this.totalTime = 0;
+    //this.soupFilePath = new File(workDir, this.SOUP_FILE_PATH).getAbsolutePath();
+  }
+  
+  private void cookSoup() {
+    prepareSoup();
     
     if (testsFile != null) {
     	channel = testsFile.getChannel();
@@ -86,11 +94,8 @@ public class Soup {
 
 		      Collections.sort(this.tests, new TestComparator());
 
-		      createLogFile();
-		      outputAllTests();
-		      closeLogFile();
-
-		      writeTests();
+		      logAllTests();
+		      splitTests();
 				}
 	      
 			} catch (IOException e) {
@@ -132,11 +137,52 @@ public class Soup {
   	return channel.lock();
   }
   
-  private void writeTests() {
+  private boolean testcaseTimeAlmostUnkown() {
+  	float avgTime = totalTime / tests.size();
+  	return avgTime <= 0.2;
+  }
+  
+  private void splitTests() {
+  	int bucketNum = serialsNum;
+  	if (testcaseTimeAlmostUnkown()) {
+  		// We don't known cost time of almost test cases. So it's better to allocate more bucket
+  		bucketNum *= 2;
+  	}
+  	
+  	SoupBucket[] buckets = new SoupBucket[bucketNum];
+  	for (int i = 0; i < buckets.length; i++) {
+  		buckets[i] = new SoupBucket();
+  	}
+  	
+  	float bucketAvgTime = totalTime / bucketNum;
+  	int bucketIdx = 0;
+  	float remainTime = totalTime;
+  	
   	for (TestIdentifier ti : tests) {
+  		SoupBucket bucket = buckets[bucketIdx];
+  		bucket.feed(ti);
+  		
+  		if (bucket.getTotalTime() >= bucketAvgTime && bucketIdx < bucketNum - 1) {
+  			logDebug(debug, "Bucket %d used time: %f(agvTime: %f)", bucketIdx, bucket.getTotalTime(), 
+  					bucketAvgTime);
+  			
+  			bucketIdx++;
+  			remainTime -= bucket.getTotalTime();
+  			bucketAvgTime = remainTime / (bucketNum - bucketIdx); 
+  		}
+  	}
+  	
+  	for (int i = 0; i < buckets.length; i++) {
+  		SoupBucket bucket = buckets[i];
+			File bucketFile = new File(TESTCASE_DIR, "testcase-" + i);
+			
+			logDebug(debug, "Bucket %d used time: %f. BucketFile: %s", i, bucket.getTotalTime(), 
+					bucketFile.getAbsoluteFile());
+			
+			bucket.flushToFile(bucketFile);
+			
   		try {
-  			String s = ti.toString() + "\n";
-				//channel.write(ByteBuffer.wrap(s.getBytes()));
+  			String s = bucketFile.getAbsolutePath() + "\n";
   			testsFile.writeBytes(s);
 			} catch (IOException e) {
 				logDebug(debug, e.getMessage(), e);
@@ -144,33 +190,25 @@ public class Soup {
   	}
   }
   
-  private void tryCreateSoupFile() {
-  	for (int i = 0; i < 100; i++) {
-    	try {
+  private void prepareSoup() {
+  	//for (int i = 0; i < 100; i++) {
+    try {
   			testsFile = new RandomAccessFile(SOUP_FILE_PATH, "rw");
-  		} catch (FileNotFoundException e) {
-  			try {
-  				new File(SOUP_FILE_PATH).createNewFile();
-  				testsFile = new RandomAccessFile(SOUP_FILE_PATH, "rw");
-  			} catch (IOException e1) {
-  				logDebug(debug, "Create file : %s failed. Error: %s", SOUP_FILE_PATH, e1.getMessage());
-  			}
+  	} catch (FileNotFoundException e) {
+  		try {
+  			new File(SOUP_FILE_PATH).createNewFile();
+  			testsFile = new RandomAccessFile(SOUP_FILE_PATH, "rw");
+  		} catch (IOException e1) {
+  			logDebug(debug, "Create file : %s failed. Error: %s", SOUP_FILE_PATH, e1.getMessage());
   		}
-    	
-    	if (testsFile != null) {
-    		return ;
-    	}
-    	
-    	try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				logDebug(debug, "sleep is interrupted");
-			}
   	}
+    
+    TESTCASE_DIR.mkdirs();
+  	//}
     
   }
 
-  private void createLogFile() {
+  private BufferedWriter createLogFile() {
     try {
       File logFile = new File("./tests.log");
       if (logFile.exists()) {
@@ -178,13 +216,16 @@ public class Soup {
       }
       logFile.createNewFile();
 
-      this.logFileWriter = new BufferedWriter(new FileWriter(logFile));
+      BufferedWriter logFileWriter = new BufferedWriter(new FileWriter(logFile));
+      return logFileWriter;
     } catch (IOException e) {
       e.printStackTrace();
     }
+    return null;
   }
 
-  private void outputAllTests() {
+  private void logAllTests() {
+  	BufferedWriter logFileWriter = createLogFile();
     try {
       for (TestIdentifier t : tests) {
         logFileWriter.write("Test: " + t + "\n");
@@ -192,6 +233,7 @@ public class Soup {
     } catch (Exception e) {
       e.printStackTrace();
     }
+    closeLogFile(logFileWriter);
   }
 
   private void scanSrcFile(File file) {
@@ -218,6 +260,7 @@ public class Soup {
           TestIdentifier ti = new TestIdentifier(fullClassName, methodName);
           logDebug(debug, "Adding: " + ti);
           tests.add(ti);
+          totalTime += ti.getUsedTime();
         } else {
           matcher = pp.matcher(line);
           if (matcher.find()) {
@@ -256,7 +299,7 @@ public class Soup {
 
   private void scanReportFile(File file) {
     //String pattern = "testcase\\s+name=\"(\\S+)\"\\s+classname=\"(\\S+)\"\\s+time=\"(\\S+)\"";
-  	//TODO: classname and name may not be in order
+  	//TODO: classname and name may not be in order of `name=... classname=...`
     String pattern = "testcase\\s+classname=\"(\\S+)\"\\s+name=\"(\\S+)\"\\s+time=\"(\\S+)\"";
     Pattern p = Pattern.compile(pattern);
 
@@ -271,11 +314,12 @@ public class Soup {
         if (matcher.find()) {
           TestIdentifier ti = new TestIdentifier(matcher.group(1), matcher.group(2));
           float usedTime = Float.parseFloat(matcher.group(3));
-          logDebug(debug, "Found test: " + ti);
+          //logDebug(debug, "Found test: " + ti);
           for (TestIdentifier t : tests) {
             // logDebug(debug, t + " === " + ti);
             if (t.equals(ti)) {
               logDebug(debug, "setting " + t + " used time to " + usedTime);
+              totalTime = totalTime - t.getUsedTime() + usedTime;
               t.setUsedTime(usedTime);
             }
           }
@@ -303,18 +347,64 @@ public class Soup {
     }
   }
 
-  public static Soup getInstance(boolean debug, File srcDir, File reportDir, File workDir) {
+  public static Soup getInstance(boolean debug, File srcDir, File reportDir, File workDir, int serialsNum) {
     if (soup == null) {
       synchronized (Soup.class) {
         if (soup == null) {
-        	soup = new Soup(debug, srcDir, reportDir, workDir);
+        	soup = new Soup(debug, srcDir, reportDir, workDir, serialsNum);
+        	soup.cookSoup();
         }
       }
     }
     return soup;
   }
 
-  public String[] takeSpoon() {
+  public String takeSpoon() {
+    String result = null;
+    
+    try {
+			locker = blockRequestLock();
+			
+			testsFile.seek(0);
+			String firstLine = testsFile.readLine();
+			
+			if (firstLine != null) {
+        result = firstLine;
+        // line: Index#ClassName#MethodName#Time
+        /*String[] tokens = firstLine.split("#");
+        result[0] = tokens[0];
+        result[1] = tokens[1];*/
+        logDebug(debug, "%s has been taken", firstLine);
+
+  			StringBuffer sb = new StringBuffer();
+  			String line = "";
+  			while((line = testsFile.readLine()) != null){
+  				line += "\n";
+          sb.append(line); 
+  			} 
+  			//logDebug(true, sb.toString());
+  			testsFile.getChannel().truncate(0);
+  			testsFile.writeBytes(sb.toString());
+			}
+			
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+			
+		} finally {
+			if (locker != null) {
+				try {
+					locker.release();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+    
+    return result;
+  }
+  
+  public String[] takeSpoons() {
     String[] result = null;
     
     try {
@@ -355,10 +445,10 @@ public class Soup {
 			}
 		}
     
-    return result;
+  	return result;
   }
 
-  public void closeLogFile() {
+  public void closeLogFile(BufferedWriter logFileWriter) {
     try {
       logFileWriter.close();
     } catch (Exception e) {
@@ -371,14 +461,14 @@ public class Soup {
     File reportDir = new File("./");
     File workDir = new File("./");
     
-  	Soup soup = Soup.getInstance(true, srcDir, null, workDir);
-    String[] result;
+  	Soup soup = Soup.getInstance(true, srcDir, new File("report"), workDir, 2);
+    String result;
 
     System.out.println("=== Start taking ===");
     int count = 0;
     while ((result = soup.takeSpoon()) != null) {
     	count++;
-      logInfo(Thread.currentThread().getName() + ": (count:" + count + ")" + result[0] + "#" + result[1]);
+      logInfo(Thread.currentThread().getName() + ": (count:" + count + ") " + result);
       try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
@@ -390,6 +480,7 @@ public class Soup {
 
   public static void main(String[] args) {
     //takingSpoon();
+  	cleanUpSoup();
     
     Thread thread1 = new Thread(new Runnable() {
     	public void run() {

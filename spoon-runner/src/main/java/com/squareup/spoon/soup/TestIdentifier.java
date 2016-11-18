@@ -19,7 +19,7 @@ public class TestIdentifier {
     }
     mClassName = className;
     mTestName = testName;
-    mUsedTime = 0;
+    mUsedTime = (float)0.01; // use to allocate case if there is no report
   }
 
   /**
@@ -78,5 +78,9 @@ public class TestIdentifier {
   @Override
   public String toString() {
     return String.format("%s#%s#%f", getClassName(), getTestName(), getUsedTime());
+  }
+  
+  public String getFullMethodName() {
+  	return mClassName + "#" + mTestName; 
   }
 }

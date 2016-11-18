@@ -158,7 +158,7 @@ public final class SpoonRunner {
     }
   }
 
-  private SpoonSummary runTests(AndroidDebugBridge adb, Set<String> serials) {
+  private SpoonSummary runTests(AndroidDebugBridge adb, final Set<String> serials) {
     int targetCount = serials.size();
     logInfo("Executing instrumentation suite on %d device(s).", targetCount);
 
@@ -189,7 +189,7 @@ public final class SpoonRunner {
       String safeSerial = SpoonUtils.sanitizeSerial(serial);
       try {
         logDebug(debug, "[%s] Starting execution.", serial);
-        summary.addResult(safeSerial, getTestRunner(serial, 0, 0, testInfo).run(adb));
+        summary.addResult(safeSerial, getTestRunner(serial, 0, 0, testInfo, serials.size()).run(adb));
       } catch (Exception e) {
         logDebug(debug, "[%s] Execution exception!", serial);
         e.printStackTrace(System.out);
@@ -215,7 +215,7 @@ public final class SpoonRunner {
           @Override public void run() {
             try {
               summary.addResult(safeSerial,
-                  getTestRunner(serial, safeShardIndex, numShards, testInfo).runInNewProcess());
+                  getTestRunner(serial, safeShardIndex, numShards, testInfo, serials.size()).runInNewProcess());
             } catch (Exception e) {
               e.printStackTrace(System.out);
               summary.addResult(safeSerial, new DeviceResult.Builder().addException(e).build());
@@ -317,11 +317,11 @@ public final class SpoonRunner {
   }
 
   private SpoonDeviceRunner getTestRunner(String serial, int shardIndex, int numShards,
-      SpoonInstrumentationInfo testInfo) {
+      SpoonInstrumentationInfo testInfo, int serialsNum) {
     return new SpoonDeviceRunner(androidSdk, applicationApk, instrumentationApk, output, serial,
         shardIndex, numShards, debug, noAnimations, adbTimeoutMillis, classpath, testInfo,
         instrumentationArgs, className, methodName, testSize, testRunListeners, codeCoverage,
-        grantAll, smartShard, srcDir, reportDir, cppCovMobilePath, gcnoPath, cppCovDstPath);
+        grantAll, smartShard, srcDir, reportDir, cppCovMobilePath, gcnoPath, cppCovDstPath, serialsNum);
   }
 
   /** Build a test suite for the specified devices and configuration. */
