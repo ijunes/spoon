@@ -312,9 +312,7 @@ public final class SpoonDeviceRunner {
       if (soup != null) {
       	listeners.add(new CovFileTestRunListener(device, coverageDir, debug, cppCovMobilePath, 
       			gcnoPath, cppCovDstPath));
-      }
-
-      if (soup != null) {
+      	
         String bucketFilePath = null;
         result.setIsMultipeTest(true);
 
