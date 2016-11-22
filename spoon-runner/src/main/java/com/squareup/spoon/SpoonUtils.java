@@ -18,6 +18,8 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
@@ -197,6 +199,10 @@ public final class SpoonUtils {
   }
   
   public static void deletePath(File path, boolean inclusive) {
+  	if (path == null) {
+  		return ;
+  	}
+  	
   	logInfo("deletPath:%s (inclusive:%b). ", path.getAbsolutePath(), inclusive);
     if (path.isDirectory()) {
       File[] children = path.listFiles();
@@ -208,6 +214,25 @@ public final class SpoonUtils {
     }
     if (inclusive) {
       path.delete();
+    }
+  }
+  
+  public static Collection<File> listFiles(File root) {
+    List<File> files = new ArrayList<File>();
+    listFiles(files, root);
+    return files;
+  }
+
+  public static void listFiles(List<File> files, File dir) {
+    File[] listFiles = dir.listFiles();
+    if (listFiles != null) {
+      for (File f : listFiles) {
+        if (f.isFile()) {
+          files.add(f);
+        } else if (f.isDirectory()) {
+          listFiles(files, f);
+        }
+      }
     }
   }
 }

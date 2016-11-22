@@ -36,27 +36,6 @@ import com.squareup.spoon.SpoonRunner.TestSizeConverter;
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logInfo;
 
-class FileHelper {
-  static Collection<File> listFiles(File root) {
-    List<File> files = new ArrayList<File>();
-    listFiles(files, root);
-    return files;
-  }
-
-  static void listFiles(List<File> files, File dir) {
-    File[] listFiles = dir.listFiles();
-    if (listFiles != null) {
-      for (File f : listFiles) {
-        if (f.isFile()) {
-          files.add(f);
-        } else if (f.isDirectory()) {
-          listFiles(files, f);
-        }
-      }
-    }
-  }
-}
-
 public class Soup {
 	// TODO: it is better to split this class into 2 classes and one of them manage the division of test case
 	// and the other communicate with the manager and return the cases to the device to run
@@ -299,7 +278,7 @@ public class Soup {
   private void scanSrcDir() {
     if (srcDir != null) {
       logInfo("Scanning src dir: " + srcDir.getName());
-      for (File file : FileHelper.listFiles(srcDir)) {
+      for (File file : SpoonUtils.listFiles(srcDir)) {
         logDebug(debug, "For file " + file.getName());
         if (file.getName().endsWith(".java")) {
           //logDebug(debug, file.getName() + ": Scanning");
@@ -383,7 +362,7 @@ public class Soup {
   private void scanReportDir() {
     if (reportDir != null) {
       logInfo("Scanning report dir: " + reportDir.getName());
-      for (File file : FileHelper.listFiles(reportDir)) {
+      for (File file : SpoonUtils.listFiles(reportDir)) {
         logDebug(debug, "For file " + file.getName());
         if (file.getName().endsWith(".xml")) {
           scanReportFile(file);
@@ -476,7 +455,6 @@ public class Soup {
       try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
     }
