@@ -45,7 +45,7 @@ import static com.squareup.spoon.SpoonUtils.obtainRealDevice;
 /** Represents a single device and the test configuration to be executed. */
 public final class SpoonDeviceRunner {
   private static final String FILE_EXECUTION = "execution.json";
-  private static final String FILE_RESULT = "result.json";
+  static final String FILE_RESULT = "result.json";
   private static final String DEVICE_SCREENSHOT_DIR = "app_" + SPOON_SCREENSHOTS;
   private static final String DEVICE_FILE_DIR = "app_" + SPOON_FILES;
   private static final String[] DEVICE_DIRS = {DEVICE_SCREENSHOT_DIR, DEVICE_FILE_DIR};
@@ -590,6 +590,17 @@ public final class SpoonDeviceRunner {
         builder.setLog(entry.getValue());
       }
     }
+  }
+  
+  static void writeDeviceResult(DeviceResult result, File outputDir, String serial) {
+  	FileWriter writer;
+		try {
+			writer = new FileWriter(FileUtils.getFile(outputDir, TEMP_DIR, serial, FILE_RESULT));
+	    GSON.toJson(result, writer);
+	    writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
   }
 
   /////////////////////////////////////////////////////////////////////////////

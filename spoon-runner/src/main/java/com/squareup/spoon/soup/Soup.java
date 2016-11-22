@@ -159,7 +159,7 @@ public class Soup {
   
   private void splitTests() {
   	int bucketNum = serialsNum;
-  	if (testcaseTimeAlmostUnkown()) {
+  	if (testcaseTimeAlmostUnkown() && serialsNum > 1) {
   		// We don't known cost time of almost test cases. So it's better to allocate more bucket
   		bucketNum *= 2;
   	}
