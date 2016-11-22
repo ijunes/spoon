@@ -50,6 +50,9 @@ class FileHelper {
 }
 
 public class Soup {
+	// TODO: it is better to split this class into 2 classes and one of them manage the division of test case
+	// and the other communicate with the manager and return the cases to the device to run
+	
   private static Soup soup;
   private static final String SOUP_FILE_PATH = "soup";
   private File srcDir;
@@ -402,50 +405,6 @@ public class Soup {
 		}
     
     return result;
-  }
-  
-  public String[] takeSpoons() {
-    String[] result = null;
-    
-    try {
-			locker = blockRequestLock();
-			
-			testsFile.seek(0);
-			String firstLine = testsFile.readLine();
-			
-			if (firstLine != null) {
-        result = new String[2];
-        String[] tokens = firstLine.split("#");
-        result[0] = tokens[0];
-        result[1] = tokens[1];
-        logDebug(debug, "%s has been taken", firstLine);
-
-  			StringBuffer sb = new StringBuffer();
-  			String line = "";
-  			while((line = testsFile.readLine()) != null){
-  				line += "\n";
-          sb.append(line); 
-  			} 
-  			//logDebug(true, sb.toString());
-  			testsFile.getChannel().truncate(0);
-  			testsFile.writeBytes(sb.toString());
-			}
-			
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-			
-		} finally {
-			if (locker != null) {
-				try {
-					locker.release();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
-		}
-    
-  	return result;
   }
 
   public void closeLogFile(BufferedWriter logFileWriter) {

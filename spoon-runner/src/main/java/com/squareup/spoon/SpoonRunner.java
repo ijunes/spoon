@@ -679,7 +679,7 @@ public final class SpoonRunner {
     public String cppCovMobilePath;
     
     @Parameter(names = { "--gcno-path" },
-        description = "The path of gcno files in mobile") //
+        description = "The path of gcno files") //
     public String gcnoPath;
     
     @Parameter(names = { "--cpp-cov-dst-path" },
