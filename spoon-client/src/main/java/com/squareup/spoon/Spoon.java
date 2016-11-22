@@ -42,6 +42,8 @@ public final class Spoon {
   private static final String TAG = "Spoon";
   private static final Object LOCK = new Object();
   private static final Pattern TAG_VALIDATION = Pattern.compile("[a-zA-Z0-9_-]+");
+  private static final int LOLLIPOP_API_LEVEL = 21;
+  private static final int MARSHMALLOW_API_LEVEL = 23;
 
   /** Holds a set of directories that have been cleared for this test */
   private static Set<String> clearedOutputDirectories = new HashSet<String>();
@@ -90,6 +92,11 @@ public final class Spoon {
 
   private static void takeScreenshot(File file, final Activity activity) throws IOException {
     View view = activity.getWindow().getDecorView();
+    if (view.getWidth() == 0 || view.getHeight() == 0) {
+      throw new IOException("Your view has no height or width. Are you sure "
+              + activity.getClass().getSimpleName()
+              + " is the currently displayed activity?");
+    }
     final Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), ARGB_8888);
 
     if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -204,7 +211,7 @@ public final class Spoon {
   private static File filesDirectory(Context context, String directoryType, String testClassName,
       String testMethodName) throws IllegalAccessException {
     File directory;
-    if (Build.VERSION.SDK_INT >= 21) {
+    if (Build.VERSION.SDK_INT >= LOLLIPOP_API_LEVEL) {
       // Use external storage.
       directory = new File(getExternalStorageDirectory(), "app_" + directoryType);
     } else {
@@ -249,7 +256,7 @@ public final class Spoon {
 
   private static StackTraceElement extractStackElement(StackTraceElement[] trace, int i) {
     //Stacktrace length changed in M
-    int testClassTraceIndex = Build.VERSION.SDK_INT >= 23 ? (i - 2) : (i - 3);
+    int testClassTraceIndex = Build.VERSION.SDK_INT >= MARSHMALLOW_API_LEVEL ? (i - 2) : (i - 3);
     return trace[testClassTraceIndex];
   }
 

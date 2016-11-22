@@ -1,6 +1,56 @@
 Change Log
 ==========
 
+Version 1.7.0 *(2016-09-12)*
+----------------------------
+
+* Fix: upgraded jacoco to fix code coverage merging
+* Fix: escape HTML in exception titles
+* Fix: allow unexpected exception format to continue parsing
+* Fix: eagerly blow up if view is 0x0
+* Fix: show install exceptions in the results output
+
+Version 1.6.4 *(2016-08-09)*
+----------------------------
+
+* Fix: one more double-marking tweak
+
+Version 1.6.3 *(2016-08-08)*
+----------------------------
+
+* Fix: allow double-marking failure/error 
+* New: skipDevice flag to allow excluding certain devices
+
+Version 1.6.2 *(2016-07-26)*
+----------------------------
+
+* Fix: empty device model
+
+Version 1.6.1 *(2016-07-13)*
+----------------------------
+
+* Fix: issues with images not showing up in output
+
+Version 1.6.0 *(2016-07-11)*
+----------------------------
+
+* New: --grant-all flag to grant permissions on M+
+
+Version 1.5.7 *(2016-06-29)*
+----------------------------
+
+* Fix: hopefully no more issues reading logcat
+
+Version 1.5.6 *(2016-06-15)*
+----------------------------
+
+* Fix: better "failure" state semantics
+
+Version 1.5.5 *(2016-06-15)*
+----------------------------
+
+* Fix: code coverage storage on actual devices
+
 Version 1.5.4 *(2016-05-31)*
 ----------------------------
 

@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
 
 import static com.squareup.spoon.DeviceTestResult.SCREENSHOT_SEPARATOR;
 
@@ -28,7 +29,6 @@ final class HtmlUtils {
       return new SimpleDateFormat("EEEE, MMMM dd, h:mm a");
     }
   };
-
 
   static String deviceDetailsToString(DeviceDetails details) {
     if (details == null) return null;
@@ -88,9 +88,6 @@ final class HtmlUtils {
         break;
       case FAIL:
         status = "fail";
-        break;
-      case ERROR:
-        status = "error";
         break;
       default:
         throw new IllegalArgumentException("Unknown result status: " + testResult.getStatus());
@@ -194,14 +191,23 @@ final class HtmlUtils {
     if (exception == null) {
       return null;
     }
-    String message = exception.toString().replace("\n", "<br/>");
+    // Escape any special HTML characters in the exception that would otherwise break the HTML
+    // rendering (e.g. the angle brackets around the default toString() for enums).
+    String message = StringEscapeUtils.escapeHtml4(exception.toString());
+
+    // Newline characters are usually stripped out by the parsing code in
+    // {@link StackTrace#from(String)}, but they can sometimes remain (e.g. when the stack trace
+    // is not in an expected format).  This replacement needs to be done after any HTML escaping.
+    message = message.replace("\n", "<br/>");
+
     List<String> lines = new ArrayList<String>();
     for (StackTrace.Element element : exception.getElements()) {
       lines.add("&nbsp;&nbsp;&nbsp;&nbsp;at " + element.toString());
     }
     while (exception.getCause() != null) {
       exception = exception.getCause();
-      lines.add("Caused by: " + exception.toString().replace("\n", "<br/>"));
+      String causeMessage = StringEscapeUtils.escapeHtml4(exception.toString());
+      lines.add("Caused by: " + causeMessage.replace("\n", "<br/>"));
     }
     return new ExceptionInfo(message, lines);
   }
