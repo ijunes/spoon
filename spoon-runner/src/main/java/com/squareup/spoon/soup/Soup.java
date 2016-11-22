@@ -23,7 +23,15 @@ import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Paths;  
 import org.atteo.xmlcombiner.XmlCombiner;
 
+import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
+import com.squareup.spoon.SpoonRunner;
 import com.squareup.spoon.SpoonUtils;
+import com.squareup.spoon.SpoonRunner.FileConverter;
+import com.squareup.spoon.SpoonRunner.NoSplitter;
+import com.squareup.spoon.SpoonRunner.TestSizeConverter;
 
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logInfo;
@@ -77,7 +85,9 @@ public class Soup {
     this.debug = debug;
     this.tests = new LinkedList();
     this.serialsNum = serialsNum;
-    logDebug(debug, "work dir: " + workDir.getAbsolutePath());
+    if (workDir != null) {
+      logDebug(debug, "work dir: " + workDir.getAbsolutePath());
+    }
     this.totalTime = 0;
     //this.soupFilePath = new File(workDir, this.SOUP_FILE_PATH).getAbsolutePath();
   }
@@ -166,8 +176,8 @@ public class Soup {
   		bucket.feed(ti);
   		
   		if (bucket.getTotalTime() >= bucketAvgTime && bucketIdx < bucketNum - 1) {
-  			logDebug(debug, "Bucket %d used time: %f(agvTime: %f)", bucketIdx, bucket.getTotalTime(), 
-  					bucketAvgTime);
+  			/* logDebug(debug, "Bucket %d used time: %f(agvTime: %f)", bucketIdx, bucket.getTotalTime(), 
+  					bucketAvgTime); */
   			
   			bucketIdx++;
   			remainTime -= bucket.getTotalTime();
@@ -435,11 +445,54 @@ public class Soup {
 				e.printStackTrace();
 			}
     }
+  } 
+  
+  private static File cleanFile(String path) {
+    if (path == null) {
+      return null;
+    }
+    return new File(path);
+  }
+  
+  static class CommandLineArgs {
+    @Parameter(names = { "--src-dir" }, description = "Source file path",
+            converter = FileConverter.class, required=true) //
+    public File srcDir = cleanFile(null);
+
+    @Parameter(names = { "--report-dir" }, description = "Report file path",
+            converter = FileConverter.class, required = true) //
+    public File reportDir = cleanFile(null);
+
+    @Parameter(names = "--device-num", required = true,
+        description = "Number of the device to use (May be used multiple times)")
+    private int serialNum = 0;
+
+    @Parameter(names = { "-h", "--help" }, description = "Command help", help = true, hidden = true)
+    public boolean help;
   }
 
   public static void main(String[] args) {
+    CommandLineArgs parsedArgs = new CommandLineArgs();
+    JCommander jc = new JCommander(parsedArgs);
+
+    try {
+      jc.parse(args);
+    } catch (ParameterException e) {
+      StringBuilder out = new StringBuilder(e.getLocalizedMessage()).append("\n\n");
+      jc.usage(out);
+      System.err.println(out.toString());
+      System.exit(1);
+      return;
+    }
+    if (parsedArgs.help) {
+      jc.usage();
+      return;
+    }
+  	
     //takingSpoon();
   	cleanUpSoup();
+  	Soup.getInstance(true, parsedArgs.srcDir, parsedArgs.reportDir, null, parsedArgs.serialNum);
+  	/*
     
     Thread thread1 = new Thread(new Runnable() {
     	public void run() {
@@ -461,6 +514,7 @@ public class Soup {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
+		*/
     
     /*
     try {
