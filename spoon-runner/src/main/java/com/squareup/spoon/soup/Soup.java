@@ -73,13 +73,15 @@ public class Soup {
   private int serialsNum;
   private static final File TESTCASE_DIR = new File("testcase/");
   private float totalTime;
+  private File testcaseFile;
+  private boolean outputTime; // TODO: we can use this flag to determine whether to output times
   
   public static void cleanUpSoup() {
   	new File(SOUP_FILE_PATH).delete();
   	SpoonUtils.deletePath(TESTCASE_DIR, false);
   }
   
-  private Soup(boolean debug, File srcDir, File reportDir, File workDir, int serialsNum) {
+  private Soup(boolean debug, File srcDir, File testcaseFile, File reportDir, File workDir, int serialsNum) {
     this.srcDir = srcDir;
     this.reportDir = reportDir;
     this.debug = debug;
@@ -89,6 +91,8 @@ public class Soup {
       logDebug(debug, "work dir: " + workDir.getAbsolutePath());
     }
     this.totalTime = 0;
+    this.testcaseFile = testcaseFile;
+    this.outputTime = false;
     //this.soupFilePath = new File(workDir, this.SOUP_FILE_PATH).getAbsolutePath();
   }
   
@@ -103,6 +107,7 @@ public class Soup {
 
 				if (testsFile.length() <= 0) {
 		      scanSrcDir();
+		      scanTestcaseFile();
 		      scanReportDir();
 
 		      Collections.sort(this.tests, new TestComparator());
@@ -119,9 +124,6 @@ public class Soup {
 					if (locker != null) {
 						locker.release();
 					}
-					/*if (channel.isOpen()) {
-						channel.close();
-					}*/
 				} catch (IOException e) {
 					logDebug(debug, e.getMessage(), e);
 				}
@@ -309,6 +311,39 @@ public class Soup {
       }
     }
   }
+  
+  private void scanTestcaseFile() {
+  	if (testcaseFile != null) {
+  		 try {
+  	      FileInputStream fis = new FileInputStream(testcaseFile);
+  	      InputStreamReader isr = new InputStreamReader(fis);
+  	      BufferedReader br = new BufferedReader(isr);
+  	      String line;
+
+  	      while ((line = br.readLine()) != null) {
+  	        String[] classMethod = line.split("#");
+  	        if (classMethod.length >= 2) {
+  	        	TestIdentifier ti = new TestIdentifier(classMethod[0], classMethod[1]);
+  	        	
+  	        	if (classMethod.length == 3) {
+  	        		try {
+    	        		ti.setUsedTime(Float.parseFloat(classMethod[2]));
+  	        		} catch (NumberFormatException e) {
+  	        			logDebug(debug, e.getMessage(), e);
+  	        		}
+  	        	}
+  	        	logDebug(debug, "Adding: " + ti);
+  	          tests.add(ti);
+  	          totalTime += ti.getUsedTime();
+  	        }
+  	      }
+
+  	      br.close();
+  	    } catch (IOException e) {
+  	      e.printStackTrace();
+  	    }
+  	}
+  }
 
   private void scanReportFile(File file) {
     //String pattern = "testcase\\s+name=\"(\\S+)\"\\s+classname=\"(\\S+)\"\\s+time=\"(\\S+)\"";
@@ -360,11 +395,11 @@ public class Soup {
     }
   }
 
-  public static Soup getInstance(boolean debug, File srcDir, File reportDir, File workDir, int serialsNum) {
+  public static Soup getInstance(boolean debug, File srcDir, File testcaseFile, File reportDir, File workDir, int serialsNum) {
     if (soup == null) {
       synchronized (Soup.class) {
         if (soup == null) {
-        	soup = new Soup(debug, srcDir, reportDir, workDir, serialsNum);
+        	soup = new Soup(debug, srcDir, testcaseFile, reportDir, workDir, serialsNum);
         	soup.cookSoup();
         }
       }
@@ -430,7 +465,7 @@ public class Soup {
     File reportDir = new File("./");
     File workDir = new File("./");
     
-  	Soup soup = Soup.getInstance(true, srcDir, new File("report"), workDir, 2);
+  	Soup soup = Soup.getInstance(true, srcDir, null, new File("report"), workDir, 2);
     String result;
 
     System.out.println("=== Start taking ===");
@@ -491,7 +526,7 @@ public class Soup {
   	
     //takingSpoon();
   	cleanUpSoup();
-  	Soup.getInstance(true, parsedArgs.srcDir, parsedArgs.reportDir, null, parsedArgs.serialNum);
+  	Soup.getInstance(true, parsedArgs.srcDir, null, parsedArgs.reportDir, null, parsedArgs.serialNum);
   	/*
     
     Thread thread1 = new Thread(new Runnable() {

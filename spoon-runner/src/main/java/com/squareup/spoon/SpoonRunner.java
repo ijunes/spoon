@@ -72,6 +72,10 @@ public final class SpoonRunner {
   private String cppCovMobilePath;
   private String gcnoPath;
   private String cppCovDstPath;
+  private boolean slaveMode;
+  private boolean masterMode;    
+  private File testcaseFile;
+  private File resultDir;
 
   private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk,
       File output, File srcDir, File reportDir, boolean debug, boolean noAnimations,
@@ -80,7 +84,8 @@ public final class SpoonRunner {
       String classpath, List<String> instrumentationArgs, String className,
       String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       boolean failIfNoDeviceConnected, List<ITestRunListener> testRunListeners, boolean sequential,
-      File initScript, boolean grantAll, boolean terminateAdb, boolean codeCoverage) {
+      File initScript, boolean grantAll, boolean terminateAdb, boolean codeCoverage,
+      boolean slaveMode, boolean masterMode, File testcaseFile, File resultDir) {
     this.title = title;
     this.androidSdk = androidSdk;
     this.applicationApk = applicationApk;
@@ -111,6 +116,10 @@ public final class SpoonRunner {
     this.cppCovMobilePath = cppCovMobilePath;
     this.gcnoPath = gcnoPath;
     this.cppCovDstPath = cppCovDstPath;
+    this.slaveMode = slaveMode;
+    this.masterMode = masterMode;
+    this.testcaseFile = testcaseFile;
+    this.resultDir = resultDir;
 
     if (sequential) {
       this.threadExecutor = Executors.newSingleThreadExecutor();
@@ -148,7 +157,9 @@ public final class SpoonRunner {
       // Execute all the things...
       SpoonSummary summary = runTests(adb, serials);
       // ...and render to HTML
-      new HtmlRenderer(summary, SpoonUtils.GSON, output).render();
+      if (!slaveMode) {
+        new HtmlRenderer(summary, SpoonUtils.GSON, output).render();
+      }
 
       return parseOverallSuccess(summary);
     } finally {
@@ -215,7 +226,7 @@ public final class SpoonRunner {
           @Override public void run() {
             try {
               summary.addResult(safeSerial,
-                  getTestRunner(serial, safeShardIndex, numShards, testInfo, serials.size()).runInNewProcess());
+                  getTestRunner(serial, safeShardIndex, numShards, testInfo, serials.size()).runInNewProcess(slaveMode));
             } catch (Exception e) {
               e.printStackTrace(System.out);
               summary.addResult(safeSerial, new DeviceResult.Builder().addException(e).build());
@@ -321,7 +332,8 @@ public final class SpoonRunner {
     return new SpoonDeviceRunner(androidSdk, applicationApk, instrumentationApk, output, serial,
         shardIndex, numShards, debug, noAnimations, adbTimeoutMillis, classpath, testInfo,
         instrumentationArgs, className, methodName, testSize, testRunListeners, codeCoverage,
-        grantAll, smartShard, srcDir, reportDir, cppCovMobilePath, gcnoPath, cppCovDstPath, serialsNum);
+        grantAll, smartShard, srcDir, reportDir, cppCovMobilePath, gcnoPath, cppCovDstPath, serialsNum,
+        slaveMode, testcaseFile);
   }
 
   /** Build a test suite for the specified devices and configuration. */
@@ -355,7 +367,10 @@ public final class SpoonRunner {
     private String cppCovMobilePath;
     private String gcnoPath;
     private String cppCovDstPath;
-    
+    private boolean slaveMode = false;
+    private boolean masterMode = false;
+    private File testcaseFile;
+    private File resultDir;
 
     /** Identifying title for this execution. */
     public Builder setTitle(String title) {
@@ -544,6 +559,33 @@ public final class SpoonRunner {
     	return this;
     }
     
+    public Builder setSlave(boolean isSlave) {
+    	this.slaveMode = isSlave;
+    	return this;
+    }
+
+    public Builder setTestcaseFile(File testcaseFile) {
+    	this.testcaseFile = testcaseFile;
+    	if (testcaseFile != null) {
+        checkArgument(testcaseFile.exists(), "Testcase file path does not exist.");
+    	}
+    	return this;
+    }
+    
+    public Builder setMaster(boolean isMaster) {
+    	this.masterMode = isMaster;
+    	return this;
+    }
+
+    public Builder setResultDir(File resultDir) {
+    	this.resultDir = resultDir;
+    	if (resultDir != null) {
+        checkArgument(resultDir.exists(), "Result direcotry does not exist.");
+        checkArgument(resultDir.isDirectory(), "Result direcotry is not directory.");
+    	}
+    	return this;
+    }
+    
     public Builder addTestRunListener(ITestRunListener testRunListener) {
       checkNotNull(testRunListener, "TestRunListener cannot be null.");
       testRunListeners.add(testRunListener);
@@ -571,7 +613,7 @@ public final class SpoonRunner {
           reportDir, debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard,
           cppCovMobilePath, gcnoPath, cppCovDstPath, classpath, instrumentationArgs, className, 
           methodName, testSize, failIfNoDeviceConnected, testRunListeners, sequential, initScript, 
-          grantAll, terminateAdb, codeCoverage);
+          grantAll, terminateAdb, codeCoverage, slaveMode, masterMode, testcaseFile, resultDir);
     }
   }
 
@@ -692,6 +734,21 @@ public final class SpoonRunner {
     @Parameter(names = { "--coverage" }, description = "Code coverage flag", arity = 1)
     public Boolean codeCoverage = false;
 
+
+    @Parameter(names = { "--slave" }, description = "Slave mode")
+    public Boolean slave = false;
+    
+    @Parameter(names = { "--testcase" }, description = "Testcase file path",
+        converter = FileConverter.class) 
+    public File testcaseFile = cleanFile(null);
+    
+    @Parameter(names = { "--master" }, description = "Master mode")
+    public Boolean master = false;
+    
+    @Parameter(names = { "--result-dir" }, description = "Result directory path",
+        converter = FileConverter.class) 
+    public File resultDir = cleanFile(null);
+    
     @Parameter(names = { "-h", "--help" }, description = "Command help", help = true, hidden = true)
     public boolean help;
   }
@@ -738,6 +795,16 @@ public final class SpoonRunner {
       jc.usage();
       return;
     }
+    
+    if (parsedArgs.slave && parsedArgs.testcaseFile == null) {
+    	throw new ParameterException("You should set `--testcase-file` argument if you enable slave mode");
+    }
+    if (parsedArgs.master && parsedArgs.resultDir == null) {
+    	throw new ParameterException("You should set `--result-dir` argument if you enable master mode");
+    }
+    if (parsedArgs.slave && parsedArgs.master) {
+    	throw new ParameterException("You should not enable slave mode and master mode in the same time");
+    }
 
     Builder builder = new SpoonRunner.Builder() //
         .setTitle(parsedArgs.title)
@@ -763,7 +830,11 @@ public final class SpoonRunner {
         .setSmartShard(parsedArgs.smartShard)
         .setCppCovMobilePath(parsedArgs.cppCovMobilePath)
         .setGcnoPath(parsedArgs.gcnoPath)
-        .setCppCovDstPath(parsedArgs.cppCovDstPath);
+        .setCppCovDstPath(parsedArgs.cppCovDstPath)
+        .setSlave(parsedArgs.slave)
+        .setMaster(parsedArgs.master)
+        .setTestcaseFile(parsedArgs.testcaseFile)
+        .setResultDir(parsedArgs.resultDir);
 
     if (parsedArgs.serials == null || parsedArgs.serials.isEmpty()) {
       builder.useAllAttachedDevices();

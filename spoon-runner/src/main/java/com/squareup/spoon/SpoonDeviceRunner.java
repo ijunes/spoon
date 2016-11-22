@@ -87,6 +87,8 @@ public final class SpoonDeviceRunner {
   private final String gcnoPath;
   private final String cppCovDstPath;
   private final int serialsNum;
+  private final boolean slaveMode;
+  private final File testcaseFile;
   // private Soup soup;
 
   /**
@@ -112,7 +114,7 @@ public final class SpoonDeviceRunner {
       String className, String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       List<ITestRunListener> testRunListeners, boolean codeCoverage, boolean grantAll,
       boolean smartShard, File srcDir, File reportDir, String cppCovMobilePath, String gcnoPath,
-      String cppCovDstPath, int serialsNum) {
+      String cppCovDstPath, int serialsNum, boolean slaveMode, File testcaseFile) {
     this.sdk = sdk;
     this.apk = apk;
     this.testApk = testApk;
@@ -144,13 +146,15 @@ public final class SpoonDeviceRunner {
     this.gcnoPath = gcnoPath;
     this.cppCovDstPath = cppCovDstPath;
     this.serialsNum = serialsNum;
+    this.slaveMode = slaveMode;
+    this.testcaseFile = testcaseFile;
     /*if (this.smartShard && this.srcDir != null) {
       soup = Soup.getInstance(this.srcDir, reportDir);
     }*/
   }
 
   /** Serialize to disk and start {@link #main(String...)} in another process. */
-  public DeviceResult runInNewProcess() throws IOException, InterruptedException {
+  public DeviceResult runInNewProcess(boolean slaveMode) throws IOException, InterruptedException {
     logDebug(debug, "[%s]", serial);
 
     // Create the output directory.
@@ -171,12 +175,15 @@ public final class SpoonDeviceRunner {
     final int exitCode = process.waitFor();
     logDebug(debug, "Process.waitFor() finished for [%s] with exitCode %d", serial, exitCode);
 
-    // Read the result from a file in the output directory.
-    FileReader resultFile = new FileReader(new File(work, FILE_RESULT));
-    DeviceResult result = GSON.fromJson(resultFile, DeviceResult.class);
-    resultFile.close();
+    if (!slaveMode) {
+      // Read the result from a file in the output directory.
+      FileReader resultFile = new FileReader(new File(work, FILE_RESULT));
+      DeviceResult result = GSON.fromJson(resultFile, DeviceResult.class);
+      resultFile.close();
+      return result;
+    }
 
-    return result;
+    return null;
   }
 
   private void printStream(InputStream stream, String tag) throws IOException {
@@ -198,8 +205,8 @@ public final class SpoonDeviceRunner {
     TestIdentifierAdapter testIdentifierAdapter = TestIdentifierAdapter.fromTestRunner(testRunner);
     Soup soup = null;
     
-    if (smartShard && srcDir != null) {
-    	soup = Soup.getInstance(debug, srcDir, reportDir, work, serialsNum);
+    if (smartShard && srcDir != null || slaveMode) {
+    	soup = Soup.getInstance(debug, srcDir, testcaseFile, reportDir, work, serialsNum);
     }
 
     logDebug(debug, "InstrumentationInfo: [%s]", instrumentationInfo);
