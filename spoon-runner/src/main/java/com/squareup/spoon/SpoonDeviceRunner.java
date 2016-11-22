@@ -56,6 +56,7 @@ public final class SpoonDeviceRunner {
   static final String COVERAGE_FILE = "coverage.ec";
   static final String COVERAGE_DIR = "coverage";
   static final String TESTCASE_FILE = "testcase.tc";
+  static final String CPP_COV_DIR = "cpp-coverage";
 
   private final File sdk;
   private final File apk;
@@ -85,10 +86,11 @@ public final class SpoonDeviceRunner {
   private final File reportDir;
   private final String cppCovMobilePath;
   private final String gcnoPath;
-  private final String cppCovDstPath;
+  //private final String cppCovDstPath;
   private final int serialsNum;
   private final boolean slaveMode;
   private final File testcaseFile;
+  private final File cppCovDir;
   // private Soup soup;
 
   /**
@@ -114,7 +116,7 @@ public final class SpoonDeviceRunner {
       String className, String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       List<ITestRunListener> testRunListeners, boolean codeCoverage, boolean grantAll,
       boolean smartShard, File srcDir, File reportDir, String cppCovMobilePath, String gcnoPath,
-      String cppCovDstPath, int serialsNum, boolean slaveMode, File testcaseFile) {
+      int serialsNum, boolean slaveMode, File testcaseFile) {
     this.sdk = sdk;
     this.apk = apk;
     this.testApk = testApk;
@@ -144,7 +146,8 @@ public final class SpoonDeviceRunner {
     this.reportDir = reportDir;
     this.cppCovMobilePath = cppCovMobilePath;
     this.gcnoPath = gcnoPath;
-    this.cppCovDstPath = cppCovDstPath;
+    //this.cppCovDstPath = cppCovDstPath;
+    this.cppCovDir = FileUtils.getFile(output, CPP_COV_DIR);
     this.serialsNum = serialsNum;
     this.slaveMode = slaveMode;
     this.testcaseFile = testcaseFile;
@@ -318,7 +321,7 @@ public final class SpoonDeviceRunner {
       }
       if (soup != null) {
       	listeners.add(new CovFileTestRunListener(device, coverageDir, debug, cppCovMobilePath, 
-      			gcnoPath, cppCovDstPath));
+      			gcnoPath, cppCovDir.getAbsolutePath()));
       	
         String bucketFilePath = null;
         result.setIsMultipeTest(true);

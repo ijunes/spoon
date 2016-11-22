@@ -74,7 +74,7 @@ public final class SpoonRunner {
   private File reportDir;
   private String cppCovMobilePath;
   private String gcnoPath;
-  private String cppCovDstPath;
+  //private String cppCovDstPath;
   private boolean slaveMode;
   private boolean masterMode;    
   private File testcaseFile;
@@ -83,7 +83,7 @@ public final class SpoonRunner {
   private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk,
       File output, File srcDir, File reportDir, boolean debug, boolean noAnimations,
       int adbTimeoutMillis, Set<String> serials, Set<String> skipDevices, boolean shard,
-      boolean smartShard, String cppCovMobilePath, String gcnoPath, String cppCovDstPath,
+      boolean smartShard, String cppCovMobilePath, String gcnoPath, //String cppCovDstPath,
       String classpath, List<String> instrumentationArgs, String className,
       String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       boolean failIfNoDeviceConnected, List<ITestRunListener> testRunListeners, boolean sequential,
@@ -118,7 +118,7 @@ public final class SpoonRunner {
     this.grantAll = grantAll;
     this.cppCovMobilePath = cppCovMobilePath;
     this.gcnoPath = gcnoPath;
-    this.cppCovDstPath = cppCovDstPath;
+    //this.cppCovDstPath = cppCovDstPath;
     this.slaveMode = slaveMode;
     this.masterMode = masterMode;
     this.testcaseFile = testcaseFile;
@@ -179,9 +179,9 @@ public final class SpoonRunner {
     } catch (IOException e) {
       throw new RuntimeException("Unable to clean output directory: " + output, e);
     }
-    if (cppCovDstPath != null) {
+    /*if (cppCovDstPath != null) {
     	SpoonUtils.deletePath(new File(cppCovDstPath), false);
-    }
+    }*/
   	Soup.cleanUpSoup();
   }
 
@@ -374,7 +374,7 @@ public final class SpoonRunner {
     return new SpoonDeviceRunner(androidSdk, applicationApk, instrumentationApk, output, serial,
         shardIndex, numShards, debug, noAnimations, adbTimeoutMillis, classpath, testInfo,
         instrumentationArgs, className, methodName, testSize, testRunListeners, codeCoverage,
-        grantAll, smartShard, srcDir, reportDir, cppCovMobilePath, gcnoPath, cppCovDstPath, serialsNum,
+        grantAll, smartShard, srcDir, reportDir, cppCovMobilePath, gcnoPath, serialsNum,
         slaveMode, testcaseFile);
   }
 
@@ -408,7 +408,7 @@ public final class SpoonRunner {
     private boolean smartShard = false;
     private String cppCovMobilePath;
     private String gcnoPath;
-    private String cppCovDstPath;
+    //private String cppCovDstPath;
     private boolean slaveMode = false;
     private boolean masterMode = false;
     private File testcaseFile;
@@ -600,10 +600,10 @@ public final class SpoonRunner {
     	return this;
     }
     
-    public Builder setCppCovDstPath(String path) {
+    /*public Builder setCppCovDstPath(String path) {
     	this.cppCovDstPath = path;
     	return this;
-    }
+    }*/
     
     public Builder setSlave(boolean isSlave) {
     	this.slaveMode = isSlave;
@@ -664,7 +664,7 @@ public final class SpoonRunner {
 
       return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, srcDir,
           reportDir, debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard,
-          cppCovMobilePath, gcnoPath, cppCovDstPath, classpath, instrumentationArgs, className, 
+          cppCovMobilePath, gcnoPath, classpath, instrumentationArgs, className, 
           methodName, testSize, failIfNoDeviceConnected, testRunListeners, sequential, initScript, 
           grantAll, terminateAdb, codeCoverage, slaveMode, masterMode, testcaseFile, resultDir);
     }
@@ -777,9 +777,11 @@ public final class SpoonRunner {
         description = "The path of gcno files") //
     public String gcnoPath;
     
+    /*
     @Parameter(names = { "--cpp-cov-dst-path" },
         description = "The destination path of cpp coverage files") //
     public String cppCovDstPath;
+    */
 
     @Parameter(names = { "--debug" }, hidden = true) //
     public boolean debug;
@@ -873,7 +875,7 @@ public final class SpoonRunner {
         .setSmartShard(parsedArgs.smartShard)
         .setCppCovMobilePath(parsedArgs.cppCovMobilePath)
         .setGcnoPath(parsedArgs.gcnoPath)
-        .setCppCovDstPath(parsedArgs.cppCovDstPath)
+        //.setCppCovDstPath(parsedArgs.cppCovDstPath)
         .setSlave(parsedArgs.slave)
         .setMaster(parsedArgs.master)
         .setTestcaseFile(parsedArgs.testcaseFile)
