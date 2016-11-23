@@ -473,7 +473,7 @@ public class Soup {
     public File srcDir = cleanFile(null);
 
     @Parameter(names = { "--report-dir" }, description = "Report file path",
-            converter = FileConverter.class, required = true) //
+            converter = FileConverter.class) //
     public File reportDir = cleanFile(null);
 
     @Parameter(names = "--device-num", required = true,
