@@ -137,28 +137,30 @@ public final class SpoonRunner {
    * @return {@code true} if there were no test failures or exceptions thrown.
    */
   public boolean run() {
-    checkArgument(applicationApk.exists(), "Could not find application APK.");
-    checkArgument(instrumentationApk.exists(), "Could not find instrumentation APK.");
-
     AndroidDebugBridge adb = SpoonUtils.initAdb(androidSdk, adbTimeoutMillis);
 
     try {
-      final SpoonInstrumentationInfo testInfo = parseFromFile(instrumentationApk);
+    	SpoonSummary summary = null;
+    	if (masterMode) {
+   		 summary = mergeResult();
+    	} else {
+        final SpoonInstrumentationInfo testInfo = parseFromFile(instrumentationApk);
 
-      // If we were given an empty serial set, load all available devices.
-      Set<String> serials = this.serials;
-      if (serials.isEmpty()) {
-        serials = SpoonUtils.findAllDevices(adb, testInfo.getMinSdkVersion());
-      }
-      if (this.skipDevices != null && !this.skipDevices.isEmpty()) {
-        serials.removeAll(this.skipDevices);
-      }
-      if (failIfNoDeviceConnected && serials.isEmpty()) {
-        throw new RuntimeException("No device(s) found.");
-      }
+        // If we were given an empty serial set, load all available devices.
+        Set<String> serials = this.serials;
+        if (serials.isEmpty()) {
+          serials = SpoonUtils.findAllDevices(adb, testInfo.getMinSdkVersion());
+        }
+        if (this.skipDevices != null && !this.skipDevices.isEmpty()) {
+          serials.removeAll(this.skipDevices);
+        }
+        if (failIfNoDeviceConnected && serials.isEmpty()) {
+          throw new RuntimeException("No device(s) found.");
+        }
 
-      // Execute all the things...
-      SpoonSummary summary = runTests(adb, serials);
+        // Execute all the things...
+        summary = runTests(adb, serials);
+    	}
       // ...and render to HTML
       if (!slaveMode) {
         new HtmlRenderer(summary, SpoonUtils.GSON, output).render();
@@ -172,8 +174,43 @@ public final class SpoonRunner {
     }
   }
   
-  private void cleanUpEnv() {
+  private SpoonSummary mergeResult() {
+  	logInfo("Work in master mode. Will merge result of result dir: %s", resultDir.getAbsolutePath());
+  	Set<String> serials = new HashSet<String>();
 
+    final SpoonSummary.Builder summary = new SpoonSummary.Builder().setTitle(title).start();
+    
+    for (File file : SpoonUtils.listFiles(resultDir)) {
+  		if (file.getName().endsWith("json")) {
+  			String serial = file.getParentFile().getName();
+  			try {
+    			FileReader resultFile = new FileReader(file);
+          DeviceResult result = GSON.fromJson(resultFile, DeviceResult.class);
+          
+          logInfo("Adding result of serial: " + serial);
+          summary.addResult(serial, result);
+          
+          serials.add(serial);
+          resultFile.close();
+  			} catch (IOException e) {
+          e.printStackTrace(System.out);
+          summary.addResult(serial, new DeviceResult.Builder().addException(e).build());
+  			}
+  		}
+  	}
+    
+    SpoonCoverageMerger coverageMerger = new SpoonCoverageMerger();
+    try {
+      coverageMerger.mergeCoverageFiles(serials, output);
+      logDebug(debug, "Merging of coverage files done.");
+    } catch (IOException exception) {
+    	logDebug(debug,"error while merging coverage files", exception);
+    }
+  	
+    return summary.end().build();
+  }
+  
+  private void cleanUpEnv() {
     try {
       FileUtils.deleteDirectory(output);
     } catch (IOException e) {
@@ -187,14 +224,9 @@ public final class SpoonRunner {
 
   private SpoonSummary runTests(AndroidDebugBridge adb, final Set<String> serials) {
     int targetCount = serials.size();
-    if (masterMode) {
-    	logInfo("Work in master mode. Will merge result of result dir: %s", resultDir.getAbsolutePath());
-    	serials.clear();
-    } else {
-      logInfo("Executing instrumentation suite on %d device(s).", targetCount);
-      cleanUpEnv();
-    }
-    
+    logInfo("Executing instrumentation suite on %d device(s).", targetCount);
+    cleanUpEnv();
+
     final SpoonInstrumentationInfo testInfo = parseFromFile(instrumentationApk);
     logDebug(debug, "Application: %s from %s", testInfo.getApplicationPackage(),
         applicationApk.getAbsolutePath());
@@ -206,27 +238,7 @@ public final class SpoonRunner {
     if (testSize != null) {
       summary.setTestSize(testSize);
     }
-    
-    if (masterMode) {
-    	for (File file : SpoonUtils.listFiles(resultDir)) {
-    		if (file.getName().endsWith("json")) {
-    			String serial = file.getParentFile().getName();
-    			try {
-      			FileReader resultFile = new FileReader(file);
-            DeviceResult result = GSON.fromJson(resultFile, DeviceResult.class);
-            
-            logInfo("Adding result of serial: " + serial);
-            summary.addResult(serial, result);
-            
-            serials.add(serial);
-            resultFile.close();
-    			} catch (IOException e) {
-            e.printStackTrace(System.out);
-            summary.addResult(serial, new DeviceResult.Builder().addException(e).build());
-    			}
-    		}
-    	}
-    } else {
+
     	if (targetCount == 1) {
         // Since there is only one device just execute it synchronously in this process.
         executeInitScript();
@@ -293,7 +305,7 @@ public final class SpoonRunner {
           throw new RuntimeException(e);
         }
       }
-    }
+    
 
     if (codeCoverage) {
       SpoonCoverageMerger coverageMerger = new SpoonCoverageMerger();
@@ -626,8 +638,8 @@ public final class SpoonRunner {
     public Builder setResultDir(File resultDir) {
     	this.resultDir = resultDir;
     	if (resultDir != null) {
-        checkArgument(resultDir.exists(), "Result direcotry does not exist.");
-        checkArgument(resultDir.isDirectory(), "Result direcotry is not directory.");
+        checkArgument(resultDir.exists(), "Result direcotry does not exist: " + resultDir.getAbsolutePath());
+        checkArgument(resultDir.isDirectory(), "Result direcotry is not directory: " + resultDir.getAbsolutePath());
     	}
     	return this;
     }
@@ -646,8 +658,12 @@ public final class SpoonRunner {
     public SpoonRunner build() {
       checkNotNull(androidSdk, "SDK is required.");
       checkArgument(androidSdk.exists(), "SDK path does not exist.");
-      checkNotNull(applicationApk, "Application APK is required.");
-      checkNotNull(instrumentationApk, "Instrumentation APK is required.");
+      if (!masterMode) {
+        checkNotNull(applicationApk, "Application APK is required.");
+        checkNotNull(instrumentationApk, "Instrumentation APK is required.");
+        checkArgument(applicationApk.exists(), "Could not find application APK.");
+        checkArgument(instrumentationApk.exists(), "Could not find instrumentation APK.");
+      }
       checkNotNull(output, "Output path is required.");
       checkNotNull(serials, "Device serials are required.");
       if (!isNullOrEmpty(methodName)) {
