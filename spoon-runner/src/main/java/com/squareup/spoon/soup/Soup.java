@@ -9,8 +9,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -20,8 +18,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
-import java.nio.file.Paths;  
-import org.atteo.xmlcombiner.XmlCombiner;
 
 import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
 import com.beust.jcommander.JCommander;
@@ -30,8 +26,6 @@ import com.beust.jcommander.ParameterException;
 import com.squareup.spoon.SpoonRunner;
 import com.squareup.spoon.SpoonUtils;
 import com.squareup.spoon.SpoonRunner.FileConverter;
-import com.squareup.spoon.SpoonRunner.NoSplitter;
-import com.squareup.spoon.SpoonRunner.TestSizeConverter;
 
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logInfo;
@@ -229,15 +223,24 @@ public class Soup {
     }
     closeLogFile(logFileWriter);
   }
+  
+  private void addTi(String fullClassName, String methodName) {
+    TestIdentifier ti = new TestIdentifier(fullClassName, methodName);
+    logDebug(debug, "Adding: " + ti);
+    tests.add(ti);
+    totalTime += ti.getUsedTime();
+  }
 
   private void scanSrcFile(File file) {
     String methodPattern = "public\\s+void\\s+(test.*)\\s*\\(";
     String packagePattern = "package\\s+(.*);";
     String classPattern = "public\\s+class\\s+(\\S*)[\\s|\\{]+";
+    String dontSplitPattern = "@UseDataProvider";
 
     Pattern mp = Pattern.compile(methodPattern);
     Pattern pp = Pattern.compile(packagePattern);
     Pattern cp = Pattern.compile(classPattern);
+    Pattern dsp = Pattern.compile(dontSplitPattern);
 
     try {
       FileInputStream fis = new FileInputStream(file);
@@ -247,24 +250,18 @@ public class Soup {
       String fullClassName = "";
 
       while ((line = br.readLine()) != null) {
-        Matcher matcher = mp.matcher(line);
+        Matcher matcher = dsp.matcher(line);
         if (matcher.find()) {
+        	addTi(fullClassName, "");
+        	break;
+        } else if ((matcher = mp.matcher(line)) != null && matcher.find()) {
           // logDebug(debug, m.group(0));
           String methodName = matcher.group(1);
-          TestIdentifier ti = new TestIdentifier(fullClassName, methodName);
-          logDebug(debug, "Adding: " + ti);
-          tests.add(ti);
-          totalTime += ti.getUsedTime();
-        } else {
-          matcher = pp.matcher(line);
-          if (matcher.find()) {
+          addTi(fullClassName, methodName);
+        } else if ((matcher = pp.matcher(line)) != null & matcher.find()) {
             fullClassName = matcher.group(1);
-          } else {
-            matcher = cp.matcher(line);
-            if (matcher.find()) {
-              fullClassName += "." + matcher.group(1);
-            }
-          }
+        } else if ((matcher = cp.matcher(line)) != null & matcher.find()) {
+            fullClassName += "." + matcher.group(1);
         }
       }
 
@@ -272,7 +269,6 @@ public class Soup {
     } catch (IOException e) {
       e.printStackTrace();
     }
-
   }
 
   private void scanSrcDir() {

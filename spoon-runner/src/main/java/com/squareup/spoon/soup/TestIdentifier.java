@@ -15,7 +15,7 @@ public class TestIdentifier {
    */
   public TestIdentifier(String className, String testName) {
     if (className == null || testName == null) {
-      throw new IllegalArgumentException("className and testName must " + "be non-null");
+      throw new IllegalArgumentException("className and testName must be non-null");
     }
     mClassName = className;
     mTestName = testName;
@@ -81,6 +81,9 @@ public class TestIdentifier {
   }
   
   public String getFullMethodName() {
+  	if (mTestName == null || mTestName.length() == 0) {
+  		return mClassName;
+  	}
   	return mClassName + "#" + mTestName; 
   }
 }
