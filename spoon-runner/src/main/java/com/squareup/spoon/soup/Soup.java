@@ -224,11 +224,12 @@ public class Soup {
     closeLogFile(logFileWriter);
   }
   
-  private void addTi(String fullClassName, String methodName) {
+  private TestIdentifier addTi(String fullClassName, String methodName) {
     TestIdentifier ti = new TestIdentifier(fullClassName, methodName);
     logDebug(debug, "Adding: " + ti);
     tests.add(ti);
     totalTime += ti.getUsedTime();
+    return ti;
   }
 
   private void scanSrcFile(File file) {
@@ -298,7 +299,7 @@ public class Soup {
   	      while ((line = br.readLine()) != null) {
   	        String[] classMethod = line.split("#");
   	        if (classMethod.length >= 2) {
-  	        	TestIdentifier ti = new TestIdentifier(classMethod[0], classMethod[1]);
+  	        	TestIdentifier ti = addTi(classMethod[0], classMethod[1]);
   	        	
   	        	if (classMethod.length == 3) {
   	        		try {
@@ -307,12 +308,11 @@ public class Soup {
   	        			logDebug(debug, e.getMessage(), e);
   	        		}
   	        	}
-  	        	logDebug(debug, "Adding: " + ti);
-  	          tests.add(ti);
-  	          totalTime += ti.getUsedTime();
-  	        }
-  	      }
+  	        } else if (classMethod.length == 1) {
+  	        	addTi(classMethod[0], "");
+    	      }
 
+  	      }
   	      br.close();
   	    } catch (IOException e) {
   	      e.printStackTrace();
