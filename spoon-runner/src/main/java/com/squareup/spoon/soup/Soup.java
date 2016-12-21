@@ -145,12 +145,27 @@ public class Soup {
   	float bucketAvgTime = totalTime / bucketNum;
   	int bucketIdx = 0;
   	float remainTime = totalTime;
+  	boolean methodTestFollowClassTest = false; // indicate that prior test doesn't contain method name
+  	int testIdx = 0;
   	
   	for (TestIdentifier ti : tests) {
+  		methodTestFollowClassTest = false;
+  		
   		SoupBucket bucket = buckets[bucketIdx];
   		bucket.feed(ti);
   		
-  		if (bucket.getTotalTime() >= bucketAvgTime && bucketIdx < bucketNum - 1) {
+  		testIdx++;
+  		if (ti.getTestName().length() == 0) {
+  			// current test case is a class test
+  			if (testIdx < tests.size()) {
+  				if (tests.get(testIdx).getTestName().length() != 0) {
+  					// the next test case is a method test
+  					methodTestFollowClassTest = true;
+  				}
+  			}
+  		} 
+  		
+  		if ((methodTestFollowClassTest || bucket.getTotalTime() >= bucketAvgTime) && bucketIdx < bucketNum - 1) {
   			/* logDebug(debug, "Bucket %d used time: %f(agvTime: %f)", bucketIdx, bucket.getTotalTime(), 
   					bucketAvgTime); */
   			
