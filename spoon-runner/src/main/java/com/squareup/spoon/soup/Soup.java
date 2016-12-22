@@ -145,7 +145,7 @@ public class Soup {
   	float bucketAvgTime = totalTime / bucketNum;
   	int bucketIdx = 0;
   	float remainTime = totalTime;
-  	boolean methodTestFollowClassTest = false; // indicate that prior test doesn't contain method name
+  	boolean methodTestFollowClassTest = false; // indicate that there is a method test which follows a class test
   	int testIdx = 0;
   	
   	for (TestIdentifier ti : tests) {
