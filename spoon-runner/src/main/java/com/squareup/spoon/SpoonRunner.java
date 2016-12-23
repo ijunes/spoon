@@ -185,6 +185,7 @@ public final class SpoonRunner {
   			String serial = file.getParentFile().getName();
   			try {
     			FileReader resultFile = new FileReader(file);
+          logInfo("Analyse file: " + file.getAbsolutePath());
           DeviceResult result = GSON.fromJson(resultFile, DeviceResult.class);
           
           logInfo("Adding result of serial: " + serial);
