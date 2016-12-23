@@ -1,6 +1,7 @@
 package com.squareup.spoon;
 
 import com.android.ddmlib.AndroidDebugBridge;
+import com.android.ddmlib.CollectingOutputReceiver;
 import com.android.ddmlib.DdmPreferences;
 import com.android.ddmlib.IDevice;
 import com.google.gson.Gson;
@@ -9,14 +10,19 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.madgag.gif.fmsware.AnimatedGifEncoder;
+
+
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -25,6 +31,7 @@ import org.apache.commons.io.FileUtils;
 
 import static com.android.ddmlib.FileListingService.FileEntry;
 import static com.android.ddmlib.FileListingService.TYPE_DIRECTORY;
+import static com.squareup.spoon.SpoonLogger.logInfo;
 
 /** Utilities for executing instrumentation tests on devices. */
 public final class SpoonUtils {
@@ -123,6 +130,12 @@ public final class SpoonUtils {
     waitForAdb(adb, timeOutMs);
     return adb;
   }
+  
+  public static String getExternalStoragePath(IDevice device, final String path) throws Exception {
+    CollectingOutputReceiver pathNameOutputReceiver = new CollectingOutputReceiver();
+    device.executeShellCommand("echo $EXTERNAL_STORAGE", pathNameOutputReceiver);
+    return pathNameOutputReceiver.getOutput().trim() + "/" + path;
+  }
 
   static void createAnimatedGif(List<File> testScreenshots, File animatedGif) throws IOException {
     AnimatedGifEncoder encoder = new AnimatedGifEncoder();
@@ -165,5 +178,61 @@ public final class SpoonUtils {
 
   private SpoonUtils() {
     // No instances.
+  }
+  
+  public static String getRandomCharOrNumber(int length) {
+    String val = "";
+    Random random = new Random();
+    for (int i = 0; i < length; i++) {
+        String charOrNum = random.nextInt(2) % 2 == 0 ? "char" : "num"; // 输出字母还是数字
+
+        if ("char".equalsIgnoreCase(charOrNum)) { // 字符串
+            int choice = random.nextInt(2) % 2 == 0 ? 65 : 97; // 取得大写字母还是小写字母
+            val += (char) (choice + random.nextInt(26));
+            // int choice = 97; // 指定字符串为小写字母
+            val += (char) (choice + random.nextInt(26));
+        } else if ("num".equalsIgnoreCase(charOrNum)) { // 数字
+            val += String.valueOf(random.nextInt(10));
+        }
+    }
+    return val;
+  }
+  
+  public static void deletePath(File path, boolean inclusive) {
+  	if (path == null) {
+  		return ;
+  	}
+  	
+  	logInfo("deletPath:%s (inclusive:%b). ", path.getAbsolutePath(), inclusive);
+    if (path.isDirectory()) {
+      File[] children = path.listFiles();
+      if (children != null) {
+        for (File child : children) {
+          deletePath(child, true);
+        }
+      }
+    }
+    if (inclusive) {
+      path.delete();
+    }
+  }
+  
+  public static Collection<File> listFiles(File root) {
+    List<File> files = new ArrayList<File>();
+    listFiles(files, root);
+    return files;
+  }
+
+  public static void listFiles(List<File> files, File dir) {
+    File[] listFiles = dir.listFiles();
+    if (listFiles != null) {
+      for (File f : listFiles) {
+        if (f.isFile()) {
+          files.add(f);
+        } else if (f.isDirectory()) {
+          listFiles(files, f);
+        }
+      }
+    }
   }
 }

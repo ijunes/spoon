@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
+import com.squareup.spoon.soup.Soup;
+import org.atteo.xmlcombiner.XmlCombiner;
 
 import static com.android.ddmlib.FileListingService.FileEntry;
 import static com.android.ddmlib.SyncService.getNullProgressMonitor;
@@ -43,7 +45,7 @@ import static com.squareup.spoon.SpoonUtils.obtainRealDevice;
 /** Represents a single device and the test configuration to be executed. */
 public final class SpoonDeviceRunner {
   private static final String FILE_EXECUTION = "execution.json";
-  private static final String FILE_RESULT = "result.json";
+  static final String FILE_RESULT = "result.json";
   private static final String DEVICE_SCREENSHOT_DIR = "app_" + SPOON_SCREENSHOTS;
   private static final String DEVICE_FILE_DIR = "app_" + SPOON_FILES;
   private static final String[] DEVICE_DIRS = {DEVICE_SCREENSHOT_DIR, DEVICE_FILE_DIR};
@@ -53,6 +55,8 @@ public final class SpoonDeviceRunner {
   static final String FILE_DIR = "file";
   static final String COVERAGE_FILE = "coverage.ec";
   static final String COVERAGE_DIR = "coverage";
+  static final String TESTCASE_FILE = "testcase.tc";
+  static final String CPP_COV_DIR = "cpp-coverage";
 
   private final File sdk;
   private final File apk;
@@ -77,6 +81,17 @@ public final class SpoonDeviceRunner {
   private boolean codeCoverage;
   private final List<ITestRunListener> testRunListeners;
   private final boolean grantAll;
+  private final boolean smartShard;
+  private final File srcDir;
+  private final File reportDir;
+  private final String cppCovMobilePath;
+  private final String gcnoPath;
+  //private final String cppCovDstPath;
+  private final int serialsNum;
+  private final boolean slaveMode;
+  private final File testcaseFile;
+  private final File cppCovDir;
+  // private Soup soup;
 
   /**
    * Create a test runner for a single device.
@@ -99,7 +114,9 @@ public final class SpoonDeviceRunner {
       int numShards, boolean debug, boolean noAnimations, int adbTimeout, String classpath,
       SpoonInstrumentationInfo instrumentationInfo, List<String> instrumentationArgs,
       String className, String methodName, IRemoteAndroidTestRunner.TestSize testSize,
-      List<ITestRunListener> testRunListeners, boolean codeCoverage, boolean grantAll) {
+      List<ITestRunListener> testRunListeners, boolean codeCoverage, boolean grantAll,
+      boolean smartShard, File srcDir, File reportDir, String cppCovMobilePath, String gcnoPath,
+      int serialsNum, boolean slaveMode, File testcaseFile) {
     this.sdk = sdk;
     this.apk = apk;
     this.testApk = testApk;
@@ -124,10 +141,23 @@ public final class SpoonDeviceRunner {
     this.coverageDir = FileUtils.getFile(output, COVERAGE_DIR, serial);
     this.testRunListeners = testRunListeners;
     this.grantAll = grantAll;
+    this.smartShard = smartShard;
+    this.srcDir = srcDir;
+    this.reportDir = reportDir;
+    this.cppCovMobilePath = cppCovMobilePath;
+    this.gcnoPath = gcnoPath;
+    //this.cppCovDstPath = cppCovDstPath;
+    this.cppCovDir = FileUtils.getFile(output, CPP_COV_DIR);
+    this.serialsNum = serialsNum;
+    this.slaveMode = slaveMode;
+    this.testcaseFile = testcaseFile;
+    /*if (this.smartShard && this.srcDir != null) {
+      soup = Soup.getInstance(this.srcDir, reportDir);
+    }*/
   }
 
   /** Serialize to disk and start {@link #main(String...)} in another process. */
-  public DeviceResult runInNewProcess() throws IOException, InterruptedException {
+  public DeviceResult runInNewProcess(boolean slaveMode) throws IOException, InterruptedException {
     logDebug(debug, "[%s]", serial);
 
     // Create the output directory.
@@ -148,12 +178,15 @@ public final class SpoonDeviceRunner {
     final int exitCode = process.waitFor();
     logDebug(debug, "Process.waitFor() finished for [%s] with exitCode %d", serial, exitCode);
 
-    // Read the result from a file in the output directory.
-    FileReader resultFile = new FileReader(new File(work, FILE_RESULT));
-    DeviceResult result = GSON.fromJson(resultFile, DeviceResult.class);
-    resultFile.close();
+    if (!slaveMode) {
+      // Read the result from a file in the output directory.
+      FileReader resultFile = new FileReader(new File(work, FILE_RESULT));
+      DeviceResult result = GSON.fromJson(resultFile, DeviceResult.class);
+      resultFile.close();
+      return result;
+    }
 
-    return result;
+    return null;
   }
 
   private void printStream(InputStream stream, String tag) throws IOException {
@@ -163,12 +196,21 @@ public final class SpoonDeviceRunner {
       logDebug(debug, "[%s] %s %s", serial, tag, s);
     }
   }
+  
+  /* private boolean smartShardMode() {
+  	return soup != null;
+  } */
 
   /** Execute instrumentation on the target device and return a result summary. */
   public DeviceResult run(AndroidDebugBridge adb) {
     String testPackage = instrumentationInfo.getInstrumentationPackage();
     String testRunner = instrumentationInfo.getTestRunnerClass();
     TestIdentifierAdapter testIdentifierAdapter = TestIdentifierAdapter.fromTestRunner(testRunner);
+    Soup soup = null;
+    
+    if (smartShard && srcDir != null || slaveMode) {
+    	soup = Soup.getInstance(debug, srcDir, testcaseFile, reportDir, work, serialsNum);
+    }
 
     logDebug(debug, "InstrumentationInfo: [%s]", instrumentationInfo);
 
@@ -187,7 +229,6 @@ public final class SpoonDeviceRunner {
     logDebug(debug, "[%s] setDeviceDetails %s", serial, deviceDetails);
 
     DdmPreferences.setTimeOut(adbTimeout);
-
     // Now install the main application and the instrumentation application.
     try {
       String extraArgument = "";
@@ -209,7 +250,6 @@ public final class SpoonDeviceRunner {
       return result.markInstallAsFailed(
               "Unable to install instrumentation APK.").addException(e).build();
     }
-
     // If this is Android Marshmallow or above grant WRITE_EXTERNAL_STORAGE
     if (deviceDetails.getApiLevel() >= DeviceDetails.MARSHMALLOW_API_LEVEL) {
       String appPackage = instrumentationInfo.getApplicationPackage();
@@ -232,7 +272,6 @@ public final class SpoonDeviceRunner {
 
     // Create the output directory, if it does not already exist.
     work.mkdirs();
-
     // Initiate device logging.
     SpoonDeviceLogger deviceLogger = new SpoonDeviceLogger(device);
 
@@ -264,27 +303,44 @@ public final class SpoonDeviceRunner {
         addCodeCoverageInstrumentationArgs(runner, device);
       }
       // Add the sharding instrumentation arguments if necessary
-      if (numShards != 0) {
+      if (numShards != 0 && soup == null) {
         addShardingInstrumentationArgs(runner);
       }
 
-      if (!isNullOrEmpty(className)) {
-        if (isNullOrEmpty(methodName)) {
-          runner.setClassName(className);
-        } else {
-          runner.setMethodName(className, methodName);
-        }
-      }
       if (testSize != null) {
         runner.setTestSize(testSize);
       }
+
+      setTestClassOrMethod(runner, className, methodName);
+
       List<ITestRunListener> listeners = new ArrayList<ITestRunListener>();
       listeners.add(new SpoonTestRunListener(result, debug, testIdentifierAdapter));
-      listeners.add(new XmlTestRunListener(junitReport));
+      listeners.add(new XmlTestRunListener(junitReport, (soup != null)));
       if (testRunListeners != null) {
         listeners.addAll(testRunListeners);
       }
-      runner.run(listeners);
+      if (soup != null) {
+      	listeners.add(new CovFileTestRunListener(device, coverageDir, debug, cppCovMobilePath, 
+      			gcnoPath, cppCovDir.getAbsolutePath()));
+      	
+        String bucketFilePath = null;
+        result.setIsMultipeTest(true);
+
+        while ((bucketFilePath = soup.takeSpoon()) != null) {
+        	String remotePath = SpoonUtils.getExternalStoragePath(device, SpoonDeviceRunner.TESTCASE_FILE);
+        	logInfo("Push test case file from %s to %s", bucketFilePath, remotePath);
+        	adbPushFile(device, bucketFilePath, remotePath);
+        	runner.addInstrumentationArg("testFile", remotePath);
+          //setTestClassOrMethod(runner, spoonOfSoup[0], spoonOfSoup[1]);
+          try {
+            runner.run(listeners);
+          } catch (Exception e) {
+            result.addException(e);
+          }
+        }
+      } else {
+        runner.run(listeners);
+      }
     } catch (Exception e) {
       result.addException(e);
     }
@@ -294,7 +350,8 @@ public final class SpoonDeviceRunner {
     try {
       logDebug(debug, "About to grab screenshots and prepare output for [%s]", serial);
       pullDeviceFiles(device);
-      if (codeCoverage) {
+      if (codeCoverage && soup == null) { 
+      	// will pull and merge coverage file at each when in smart shard mode 
         pullCoverageFile(device);
       }
 
@@ -304,11 +361,32 @@ public final class SpoonDeviceRunner {
     } catch (Exception e) {
       result.addException(e);
     }
+    
+    if (reportDir != null) {
+    	try {
+				FileUtils.copyFileToDirectory(junitReport, reportDir);
+			} catch (IOException e) {
+				logDebug(debug, e.getMessage(), e);
+			}
+    }
+    
     logDebug(debug, "Done running for [%s]", serial);
 
     return result.build();
   }
 
+  private void setTestClassOrMethod(RemoteAndroidTestRunner runner, String className,
+               String methodName) {
+    if (!isNullOrEmpty(className)) {
+      if (isNullOrEmpty(methodName)) {
+        runner.setClassName(className);
+      } else {
+        runner.setMethodName(className, methodName);
+      }
+    }
+
+  }
+  
   private void addCodeCoverageInstrumentationArgs(RemoteAndroidTestRunner runner, IDevice device)
           throws Exception {
     String coveragePath = getExternalStoragePath(device, COVERAGE_FILE);
@@ -475,6 +553,14 @@ public final class SpoonDeviceRunner {
       logDebug(debug, e.getMessage(), e);
     }
   }
+  
+  private void adbPushFile(IDevice device, String localPath, String remotePath) {
+  	try {
+  		device.getSyncService().pushFile(localPath, remotePath, getNullProgressMonitor());
+  	} catch (Exception e) {
+      logDebug(debug, e.getMessage(), e);
+    }
+  }
 
   private FileEntry getDirectoryOnInternalStorage(final String dir) {
     String internalPath = getInternalPath(dir);
@@ -507,6 +593,17 @@ public final class SpoonDeviceRunner {
         builder.setLog(entry.getValue());
       }
     }
+  }
+  
+  static void writeDeviceResult(DeviceResult result, File outputDir, String serial) {
+  	FileWriter writer;
+		try {
+			writer = new FileWriter(FileUtils.getFile(outputDir, TEMP_DIR, serial, FILE_RESULT));
+	    GSON.toJson(result, writer);
+	    writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
   }
 
   /////////////////////////////////////////////////////////////////////////////

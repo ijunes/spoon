@@ -221,7 +221,8 @@ public final class Spoon {
 
     synchronized (LOCK) {
       if (!clearedOutputDirectories.contains(directoryType)) {
-        deletePath(directory, false);
+      	// since the tests may run in smart shard mode, we should not delete this path
+        //deletePath(directory, false); 
         clearedOutputDirectories.add(directoryType);
       }
     }
@@ -264,14 +265,17 @@ public final class Spoon {
     File parent = dir.getParentFile();
     if (!parent.exists()) {
       createDir(parent);
-    }
+    } 
+    
     if (!dir.exists() && !dir.mkdirs()) {
       throw new IllegalAccessException("Unable to create output dir: " + dir.getAbsolutePath());
     }
+    //deletePath(dir, false);  // clear the file in it
     chmodPlusRWX(dir);
   }
 
   private static void deletePath(File path, boolean inclusive) {
+  	Log.d("Spoon", "deletPath: " + path.getAbsolutePath() + " (" + inclusive + ").");
     if (path.isDirectory()) {
       File[] children = path.listFiles();
       if (children != null) {

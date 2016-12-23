@@ -10,10 +10,14 @@ import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.converters.IParameterSplitter;
 import com.google.common.collect.ImmutableSet;
 import com.squareup.spoon.html.HtmlRenderer;
+import com.squareup.spoon.soup.Soup;
+
 import org.apache.commons.io.FileUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
@@ -33,6 +37,7 @@ import static com.squareup.spoon.DeviceTestResult.Status;
 import static com.squareup.spoon.SpoonInstrumentationInfo.parseFromFile;
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logInfo;
+import static com.squareup.spoon.SpoonUtils.GSON;
 import static java.util.Collections.synchronizedSet;
 
 /** Represents a collection of devices and the test configuration to be executed. */
@@ -47,6 +52,7 @@ public final class SpoonRunner {
   private final File applicationApk;
   private final File instrumentationApk;
   private final File output;
+  private final File srcDir;
   private final boolean debug;
   private final boolean noAnimations;
   private final int adbTimeoutMillis;
@@ -56,6 +62,7 @@ public final class SpoonRunner {
   private final Set<String> serials;
   private final Set<String> skipDevices;
   private final boolean shard;
+  private final boolean smartShard;
   private final String classpath;
   private final IRemoteAndroidTestRunner.TestSize testSize;
   private boolean codeCoverage;
@@ -64,19 +71,32 @@ public final class SpoonRunner {
   private final boolean terminateAdb;
   private File initScript;
   private final boolean grantAll;
+  private File reportDir;
+  private String cppCovMobilePath;
+  private String gcnoPath;
+  //private String cppCovDstPath;
+  private boolean slaveMode;
+  private boolean masterMode;    
+  private File testcaseFile;
+  private File resultDir;
 
   private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk,
-      File output, boolean debug, boolean noAnimations, int adbTimeoutMillis, Set<String> serials,
-      Set<String> skipDevices,
-      boolean shard, String classpath, List<String> instrumentationArgs, String className,
+      File output, File srcDir, File reportDir, boolean debug, boolean noAnimations,
+      int adbTimeoutMillis, Set<String> serials, Set<String> skipDevices, boolean shard,
+      boolean smartShard, String cppCovMobilePath, String gcnoPath, //String cppCovDstPath,
+      String classpath, List<String> instrumentationArgs, String className,
       String methodName, IRemoteAndroidTestRunner.TestSize testSize,
       boolean failIfNoDeviceConnected, List<ITestRunListener> testRunListeners, boolean sequential,
-      File initScript, boolean grantAll, boolean terminateAdb, boolean codeCoverage) {
+      File initScript, boolean grantAll, boolean terminateAdb, boolean codeCoverage,
+      boolean slaveMode, boolean masterMode, File testcaseFile, File resultDir) {
     this.title = title;
     this.androidSdk = androidSdk;
     this.applicationApk = applicationApk;
     this.instrumentationApk = instrumentationApk;
     this.output = output;
+    this.srcDir = srcDir;
+    this.reportDir = reportDir;
+    logInfo("src dir is %s", srcDir);
     this.debug = debug;
     this.noAnimations = noAnimations;
     this.adbTimeoutMillis = adbTimeoutMillis;
@@ -89,11 +109,20 @@ public final class SpoonRunner {
     this.codeCoverage = codeCoverage;
     this.serials = ImmutableSet.copyOf(serials);
     this.shard = shard;
+    this.smartShard = smartShard;
+    logInfo("Smart shard is %b", smartShard);
     this.failIfNoDeviceConnected = failIfNoDeviceConnected;
     this.testRunListeners = testRunListeners;
     this.terminateAdb = terminateAdb;
     this.initScript = initScript;
     this.grantAll = grantAll;
+    this.cppCovMobilePath = cppCovMobilePath;
+    this.gcnoPath = gcnoPath;
+    //this.cppCovDstPath = cppCovDstPath;
+    this.slaveMode = slaveMode;
+    this.masterMode = masterMode;
+    this.testcaseFile = testcaseFile;
+    this.resultDir = resultDir;
 
     if (sequential) {
       this.threadExecutor = Executors.newSingleThreadExecutor();
@@ -108,30 +137,34 @@ public final class SpoonRunner {
    * @return {@code true} if there were no test failures or exceptions thrown.
    */
   public boolean run() {
-    checkArgument(applicationApk.exists(), "Could not find application APK.");
-    checkArgument(instrumentationApk.exists(), "Could not find instrumentation APK.");
-
     AndroidDebugBridge adb = SpoonUtils.initAdb(androidSdk, adbTimeoutMillis);
 
     try {
-      final SpoonInstrumentationInfo testInfo = parseFromFile(instrumentationApk);
+    	SpoonSummary summary = null;
+    	if (masterMode) {
+   		 summary = mergeResult();
+    	} else {
+        final SpoonInstrumentationInfo testInfo = parseFromFile(instrumentationApk);
 
-      // If we were given an empty serial set, load all available devices.
-      Set<String> serials = this.serials;
-      if (serials.isEmpty()) {
-        serials = SpoonUtils.findAllDevices(adb, testInfo.getMinSdkVersion());
-      }
-      if (this.skipDevices != null && !this.skipDevices.isEmpty()) {
-        serials.removeAll(this.skipDevices);
-      }
-      if (failIfNoDeviceConnected && serials.isEmpty()) {
-        throw new RuntimeException("No device(s) found.");
-      }
+        // If we were given an empty serial set, load all available devices.
+        Set<String> serials = this.serials;
+        if (serials.isEmpty()) {
+          serials = SpoonUtils.findAllDevices(adb, testInfo.getMinSdkVersion());
+        }
+        if (this.skipDevices != null && !this.skipDevices.isEmpty()) {
+          serials.removeAll(this.skipDevices);
+        }
+        if (failIfNoDeviceConnected && serials.isEmpty()) {
+          throw new RuntimeException("No device(s) found.");
+        }
 
-      // Execute all the things...
-      SpoonSummary summary = runTests(adb, serials);
+        // Execute all the things...
+        summary = runTests(adb, serials);
+    	}
       // ...and render to HTML
-      new HtmlRenderer(summary, SpoonUtils.GSON, output).render();
+      if (!slaveMode) {
+        new HtmlRenderer(summary, SpoonUtils.GSON, output).render();
+      }
 
       return parseOverallSuccess(summary);
     } finally {
@@ -140,16 +173,60 @@ public final class SpoonRunner {
       }
     }
   }
+  
+  private SpoonSummary mergeResult() {
+  	logInfo("Work in master mode. Will merge result of result dir: %s", resultDir.getAbsolutePath());
+  	Set<String> serials = new HashSet<String>();
 
-  private SpoonSummary runTests(AndroidDebugBridge adb, Set<String> serials) {
-    int targetCount = serials.size();
-    logInfo("Executing instrumentation suite on %d device(s).", targetCount);
-
+    final SpoonSummary.Builder summary = new SpoonSummary.Builder().setTitle(title).start();
+    
+    for (File file : SpoonUtils.listFiles(resultDir)) {
+  		if (file.getName().endsWith("json")) {
+  			String serial = file.getParentFile().getName();
+  			try {
+    			FileReader resultFile = new FileReader(file);
+          logInfo("Analyse file: " + file.getAbsolutePath());
+          DeviceResult result = GSON.fromJson(resultFile, DeviceResult.class);
+          
+          logInfo("Adding result of serial: " + serial);
+          summary.addResult(serial, result);
+          
+          serials.add(serial);
+          resultFile.close();
+  			} catch (IOException e) {
+          e.printStackTrace(System.out);
+          summary.addResult(serial, new DeviceResult.Builder().addException(e).build());
+  			}
+  		}
+  	}
+    
+    SpoonCoverageMerger coverageMerger = new SpoonCoverageMerger();
+    try {
+      coverageMerger.mergeCoverageFiles(serials, output);
+      logDebug(debug, "Merging of coverage files done.");
+    } catch (IOException exception) {
+    	logDebug(debug,"error while merging coverage files", exception);
+    }
+  	
+    return summary.end().build();
+  }
+  
+  private void cleanUpEnv() {
     try {
       FileUtils.deleteDirectory(output);
     } catch (IOException e) {
       throw new RuntimeException("Unable to clean output directory: " + output, e);
     }
+    /*if (cppCovDstPath != null) {
+    	SpoonUtils.deletePath(new File(cppCovDstPath), false);
+    }*/
+  	Soup.cleanUpSoup();
+  }
+
+  private SpoonSummary runTests(AndroidDebugBridge adb, final Set<String> serials) {
+    int targetCount = serials.size();
+    logInfo("Executing instrumentation suite on %d device(s).", targetCount);
+    cleanUpEnv();
 
     final SpoonInstrumentationInfo testInfo = parseFromFile(instrumentationApk);
     logDebug(debug, "Application: %s from %s", testInfo.getApplicationPackage(),
@@ -163,65 +240,73 @@ public final class SpoonRunner {
       summary.setTestSize(testSize);
     }
 
-    if (targetCount == 1) {
-      // Since there is only one device just execute it synchronously in this process.
-      executeInitScript();
-      String serial = serials.iterator().next();
-      String safeSerial = SpoonUtils.sanitizeSerial(serial);
-      try {
-        logDebug(debug, "[%s] Starting execution.", serial);
-        summary.addResult(safeSerial, getTestRunner(serial, 0, 0, testInfo).run(adb));
-      } catch (Exception e) {
-        logDebug(debug, "[%s] Execution exception!", serial);
-        e.printStackTrace(System.out);
-        summary.addResult(safeSerial, new DeviceResult.Builder().addException(e).build());
-      } finally {
-        logDebug(debug, "[%s] Execution done.", serial);
-      }
-    } else {
-      // Execute a script before the first test on the thread executor if sequential mode on
-      threadExecutor.execute(getRunnableScript());
-
-      // Spawn a new thread for each device and wait for them all to finish.
-      final CountDownLatch done = new CountDownLatch(targetCount);
-      final Set<String> remaining = synchronizedSet(new HashSet<String>(serials));
-
-      int shardIndex = 0;
-      final int numShards = shard ? serials.size() : 0;
-      for (final String serial : serials) {
-        final String safeSerial = SpoonUtils.sanitizeSerial(serial);
-        logDebug(debug, "[%s] Starting execution.", serial);
-        final int safeShardIndex = shardIndex;
-        Runnable runnable = new Runnable() {
-          @Override public void run() {
-            try {
-              summary.addResult(safeSerial,
-                  getTestRunner(serial, safeShardIndex, numShards, testInfo).runInNewProcess());
-            } catch (Exception e) {
-              e.printStackTrace(System.out);
-              summary.addResult(safeSerial, new DeviceResult.Builder().addException(e).build());
-            } finally {
-              done.countDown();
-              remaining.remove(serial);
-              logDebug(debug, "[%s] Execution done. (%s remaining %s)", serial, done.getCount(),
-                  remaining);
-            }
+    	if (targetCount == 1) {
+        // Since there is only one device just execute it synchronously in this process.
+        executeInitScript();
+        String serial = serials.iterator().next();
+        String safeSerial = SpoonUtils.sanitizeSerial(serial);
+        try {
+          logDebug(debug, "[%s] Starting execution.", serial);
+          DeviceResult result = getTestRunner(serial, 0, 0, testInfo, serials.size()).run(adb);
+          summary.addResult(safeSerial, result);
+          
+          if (slaveMode) {
+            // Write device result file.
+            SpoonDeviceRunner.writeDeviceResult(result, output, serial);
           }
-        };
-        if (shard) {
-          shardIndex++;
-          logDebug(debug, "shardIndex [%d]", shardIndex);
+          
+        } catch (Exception e) {
+          logDebug(debug, "[%s] Execution exception!", serial);
+          e.printStackTrace(System.out);
+          summary.addResult(safeSerial, new DeviceResult.Builder().addException(e).build());
+        } finally {
+          logDebug(debug, "[%s] Execution done.", serial);
         }
-        threadExecutor.execute(runnable);
-      }
+      } else {
+        // Execute a script before the first test on the thread executor if sequential mode on
+        threadExecutor.execute(getRunnableScript());
 
-      try {
-        done.await();
-        threadExecutor.shutdown();
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
+        // Spawn a new thread for each device and wait for them all to finish.
+        final CountDownLatch done = new CountDownLatch(targetCount);
+        final Set<String> remaining = synchronizedSet(new HashSet<String>(serials));
+
+        int shardIndex = 0;
+        final int numShards = shard ? serials.size() : 0;
+        for (final String serial : serials) {
+          final String safeSerial = SpoonUtils.sanitizeSerial(serial);
+          logDebug(debug, "[%s] Starting execution.", serial);
+          final int safeShardIndex = shardIndex;
+          Runnable runnable = new Runnable() {
+            @Override public void run() {
+              try {
+                summary.addResult(safeSerial,
+                    getTestRunner(serial, safeShardIndex, numShards, testInfo, serials.size()).runInNewProcess(slaveMode));
+              } catch (Exception e) {
+                e.printStackTrace(System.out);
+                summary.addResult(safeSerial, new DeviceResult.Builder().addException(e).build());
+              } finally {
+                done.countDown();
+                remaining.remove(serial);
+                logDebug(debug, "[%s] Execution done. (%s remaining %s)", serial, done.getCount(),
+                    remaining);
+              }
+            }
+          };
+          if (shard) {
+            shardIndex++;
+            logDebug(debug, "shardIndex [%d]", shardIndex);
+          }
+          threadExecutor.execute(runnable);
+        }
+
+        try {
+          done.await();
+          threadExecutor.shutdown();
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
       }
-    }
+    
 
     if (codeCoverage) {
       SpoonCoverageMerger coverageMerger = new SpoonCoverageMerger();
@@ -298,11 +383,12 @@ public final class SpoonRunner {
   }
 
   private SpoonDeviceRunner getTestRunner(String serial, int shardIndex, int numShards,
-      SpoonInstrumentationInfo testInfo) {
+      SpoonInstrumentationInfo testInfo, int serialsNum) {
     return new SpoonDeviceRunner(androidSdk, applicationApk, instrumentationApk, output, serial,
         shardIndex, numShards, debug, noAnimations, adbTimeoutMillis, classpath, testInfo,
         instrumentationArgs, className, methodName, testSize, testRunListeners, codeCoverage,
-        grantAll);
+        grantAll, smartShard, srcDir, reportDir, cppCovMobilePath, gcnoPath, serialsNum,
+        slaveMode, testcaseFile);
   }
 
   /** Build a test suite for the specified devices and configuration. */
@@ -312,6 +398,8 @@ public final class SpoonRunner {
     private File applicationApk;
     private File instrumentationApk;
     private File output;
+    private File srcDir;
+    private File reportDir;
     private boolean debug = false;
     private Set<String> serials;
     private Set<String> skipDevices;
@@ -330,6 +418,14 @@ public final class SpoonRunner {
     private boolean terminateAdb = true;
     private boolean codeCoverage;
     private boolean shard = false;
+    private boolean smartShard = false;
+    private String cppCovMobilePath;
+    private String gcnoPath;
+    //private String cppCovDstPath;
+    private boolean slaveMode = false;
+    private boolean masterMode = false;
+    private File testcaseFile;
+    private File resultDir;
 
     /** Identifying title for this execution. */
     public Builder setTitle(String title) {
@@ -348,16 +444,20 @@ public final class SpoonRunner {
 
     /** Path to application APK. */
     public Builder setApplicationApk(File apk) {
-      checkNotNull(apk, "APK path not specified.");
-      checkArgument(apk.exists(), "APK path does not exist.");
+      if (apk != null) {
+        checkNotNull(apk, "APK path not specified.");
+      	checkArgument(apk.exists(), "APK path does not exist.");
+      }
       this.applicationApk = apk;
       return this;
     }
 
     /** Path to instrumentation APK. */
     public Builder setInstrumentationApk(File apk) {
-      checkNotNull(apk, "Instrumentation APK path not specified.");
-      checkArgument(apk.exists(), "Instrumentation APK path does not exist.");
+      if (apk != null) {
+        checkNotNull(apk, "Instrumentation APK path not specified.");
+        checkArgument(apk.exists(), "Instrumentation APK path does not exist.");
+      }
       this.instrumentationApk = apk;
       return this;
     }
@@ -366,6 +466,20 @@ public final class SpoonRunner {
     public Builder setOutputDirectory(File output) {
       checkNotNull(output, "Output directory not specified.");
       this.output = output;
+      return this;
+    }
+
+    /** Path to source file directory. */
+    public Builder setSrcDirectory(File srcDir) {
+      //checkNotNull(output, "Output directory not specified.");
+      this.srcDir = srcDir;
+      return this;
+    }
+
+    /** Path to source file directory. */
+    public Builder setReportDirectory(File reportDir) {
+      //checkNotNull(output, "Output directory not specified.");
+      this.reportDir = reportDir;
       return this;
     }
 
@@ -484,6 +598,53 @@ public final class SpoonRunner {
       return this;
     }
 
+    public Builder setSmartShard(boolean smartShard) {
+      this.smartShard = smartShard;
+      return this;
+    }
+
+    public Builder setCppCovMobilePath(String path) {
+    	this.cppCovMobilePath = path;
+    	return this;
+    }
+    
+    public Builder setGcnoPath(String path) {
+    	this.gcnoPath = path;
+    	return this;
+    }
+    
+    /*public Builder setCppCovDstPath(String path) {
+    	this.cppCovDstPath = path;
+    	return this;
+    }*/
+    
+    public Builder setSlave(boolean isSlave) {
+    	this.slaveMode = isSlave;
+    	return this;
+    }
+
+    public Builder setTestcaseFile(File testcaseFile) {
+    	this.testcaseFile = testcaseFile;
+    	if (testcaseFile != null) {
+        checkArgument(testcaseFile.exists(), "Testcase file path does not exist.");
+    	}
+    	return this;
+    }
+    
+    public Builder setMaster(boolean isMaster) {
+    	this.masterMode = isMaster;
+    	return this;
+    }
+
+    public Builder setResultDir(File resultDir) {
+    	this.resultDir = resultDir;
+    	if (resultDir != null) {
+        checkArgument(resultDir.exists(), "Result direcotry does not exist: " + resultDir.getAbsolutePath());
+        checkArgument(resultDir.isDirectory(), "Result direcotry is not directory: " + resultDir.getAbsolutePath());
+    	}
+    	return this;
+    }
+    
     public Builder addTestRunListener(ITestRunListener testRunListener) {
       checkNotNull(testRunListener, "TestRunListener cannot be null.");
       testRunListeners.add(testRunListener);
@@ -498,19 +659,31 @@ public final class SpoonRunner {
     public SpoonRunner build() {
       checkNotNull(androidSdk, "SDK is required.");
       checkArgument(androidSdk.exists(), "SDK path does not exist.");
-      checkNotNull(applicationApk, "Application APK is required.");
-      checkNotNull(instrumentationApk, "Instrumentation APK is required.");
+      if (!masterMode) {
+        checkNotNull(applicationApk, "Application APK is required.");
+        checkNotNull(instrumentationApk, "Instrumentation APK is required.");
+        checkArgument(applicationApk.exists(), "Could not find application APK.");
+        checkArgument(instrumentationApk.exists(), "Could not find instrumentation APK.");
+      }
       checkNotNull(output, "Output path is required.");
       checkNotNull(serials, "Device serials are required.");
       if (!isNullOrEmpty(methodName)) {
         checkArgument(!isNullOrEmpty(className),
             "Must specify class name if you're specifying a method name.");
       }
+      if (slaveMode) {
+      	checkArgument(testcaseFile != null, "You should set `--testcase-file` argument if you enable slave mode");
+      	checkArgument(!masterMode, "You should not enable slave mode and master mode in the same time");
+      }
+      if (masterMode) {
+      	checkArgument(resultDir != null, "You should set `--result-dir` argument if you enable master mode");
+      }
 
-      return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, debug,
-          noAnimations, adbTimeoutMillis, serials, skipDevices, shard, classpath,
-          instrumentationArgs, className, methodName, testSize, failIfNoDeviceConnected,
-          testRunListeners, sequential, initScript, grantAll, terminateAdb, codeCoverage);
+      return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, srcDir,
+          reportDir, debug, noAnimations, adbTimeoutMillis, serials, skipDevices, shard, smartShard,
+          cppCovMobilePath, gcnoPath, classpath, instrumentationArgs, className, 
+          methodName, testSize, failIfNoDeviceConnected, testRunListeners, sequential, initScript, 
+          grantAll, terminateAdb, codeCoverage, slaveMode, masterMode, testcaseFile, resultDir);
     }
   }
 
@@ -530,11 +703,11 @@ public final class SpoonRunner {
     public String title = DEFAULT_TITLE;
 
     @Parameter(names = { "--apk" }, description = "Application APK",
-        converter = FileConverter.class, required = true) //
+        converter = FileConverter.class) //
     public File apk;
 
     @Parameter(names = { "--test-apk" }, description = "Test application APK",
-        converter = FileConverter.class, required = true) //
+        converter = FileConverter.class) //
     public File testApk;
 
     @Parameter(names = { "--e" }, variableArity = true, splitter = NoSplitter.class,
@@ -556,6 +729,14 @@ public final class SpoonRunner {
     @Parameter(names = { "--output" }, description = "Output path",
         converter = FileConverter.class) //
     public File output = cleanFile(SpoonRunner.DEFAULT_OUTPUT_DIRECTORY);
+
+    @Parameter(names = { "--src-dir" }, description = "Source file path",
+            converter = FileConverter.class) //
+    public File srcDir = cleanFile(null);
+
+    @Parameter(names = { "--report-dir" }, description = "Report file path",
+            converter = FileConverter.class) //
+    public File reportDir = cleanFile(null);
 
     @Parameter(names = { "--sdk" }, description = "Path to Android SDK") //
     public File sdk = cleanFile(System.getenv("ANDROID_HOME"));
@@ -601,12 +782,45 @@ public final class SpoonRunner {
         description = "Automatically shard across all specified serials") //
     public boolean shard;
 
+    @Parameter(names = { "--smart-shard" },
+            description = "Automatically shard across all specified serials base on time cost") //
+    public boolean smartShard;
+    
+    @Parameter(names = { "--cpp-cov-mobile-path" },
+        description = "The path of cpp coverage files in mobile") //
+    public String cppCovMobilePath;
+    
+    @Parameter(names = { "--gcno-path" },
+        description = "The path of gcno files") //
+    public String gcnoPath;
+    
+    /*
+    @Parameter(names = { "--cpp-cov-dst-path" },
+        description = "The destination path of cpp coverage files") //
+    public String cppCovDstPath;
+    */
+
     @Parameter(names = { "--debug" }, hidden = true) //
     public boolean debug;
 
     @Parameter(names = { "--coverage" }, description = "Code coverage flag", arity = 1)
     public Boolean codeCoverage = false;
 
+
+    @Parameter(names = { "--slave" }, description = "Slave mode")
+    public Boolean slave = false;
+    
+    @Parameter(names = { "--testcase" }, description = "Testcase file path",
+        converter = FileConverter.class) 
+    public File testcaseFile = cleanFile(null);
+    
+    @Parameter(names = { "--master" }, description = "Master mode")
+    public Boolean master = false;
+    
+    @Parameter(names = { "--result-dir" }, description = "Result directory path",
+        converter = FileConverter.class) 
+    public File resultDir = cleanFile(null);
+    
     @Parameter(names = { "-h", "--help" }, description = "Command help", help = true, hidden = true)
     public boolean help;
   }
@@ -653,12 +867,14 @@ public final class SpoonRunner {
       jc.usage();
       return;
     }
-
+    
     Builder builder = new SpoonRunner.Builder() //
         .setTitle(parsedArgs.title)
         .setApplicationApk(parsedArgs.apk)
         .setInstrumentationApk(parsedArgs.testApk)
         .setOutputDirectory(parsedArgs.output)
+        .setSrcDirectory(parsedArgs.srcDir)
+        .setReportDirectory(parsedArgs.reportDir)
         .setDebug(parsedArgs.debug)
         .setAndroidSdk(parsedArgs.sdk)
         .setNoAnimations(parsedArgs.noAnimations)
@@ -672,7 +888,15 @@ public final class SpoonRunner {
         .setCodeCoverage(parsedArgs.codeCoverage)
         .setClassName(parsedArgs.className)
         .setMethodName(parsedArgs.methodName)
-        .setShard(parsedArgs.shard);
+        .setShard(parsedArgs.shard)
+        .setSmartShard(parsedArgs.smartShard)
+        .setCppCovMobilePath(parsedArgs.cppCovMobilePath)
+        .setGcnoPath(parsedArgs.gcnoPath)
+        //.setCppCovDstPath(parsedArgs.cppCovDstPath)
+        .setSlave(parsedArgs.slave)
+        .setMaster(parsedArgs.master)
+        .setTestcaseFile(parsedArgs.testcaseFile)
+        .setResultDir(parsedArgs.resultDir);
 
     if (parsedArgs.serials == null || parsedArgs.serials.isEmpty()) {
       builder.useAllAttachedDevices();

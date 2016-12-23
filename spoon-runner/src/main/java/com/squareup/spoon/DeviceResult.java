@@ -90,6 +90,7 @@ public final class DeviceResult {
     private long start;
     private long duration = -1;
     private final List<StackTrace> exceptions = new ArrayList<StackTrace>();
+    private boolean isMultipleTest = false;
 
     public Builder addTestResultBuilder(DeviceTest test,
         DeviceTestResult.Builder methodResultBuilder) {
@@ -109,6 +110,11 @@ public final class DeviceResult {
       return this;
     }
 
+    public Builder setIsMultipeTest(boolean isMultipleTest) {
+      this.isMultipleTest = isMultipleTest;
+      return this;
+    }
+
     public Builder markInstallAsFailed(String message) {
       checkNotNull(message);
       checkArgument(!installFailed, "Install already marked as failed.");
@@ -119,15 +125,27 @@ public final class DeviceResult {
 
     public Builder startTests() {
       checkArgument(!installFailed, "Cannot start tests when install failed.");
-      checkArgument(start == 0, "Start already called.");
+      if (!isMultipleTest) {
+        checkArgument(start == 0, "Start already called.");
+      }
       start = System.nanoTime();
       return this;
     }
 
     public Builder endTests() {
       checkArgument(start != 0, "Start was not called.");
-      checkArgument(duration == -1, "End was already called.");
-      duration = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - start);
+      if (!isMultipleTest) {
+        checkArgument(duration == -1, "End was already called.");
+      }
+      long thisTestTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - start);
+    	duration = thisTestTime;
+    	/*
+      if (isMultipleTest) {
+      	duration += thisTestTime;
+      } else {
+      	duration = thisTestTime;
+      }
+      */
       return this;
     }
 

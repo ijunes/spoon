@@ -16,10 +16,18 @@ import static com.squareup.spoon.SpoonUtils.sanitizeSerial;
 final class SpoonCoverageMerger {
   private static final String MERGED_COVERAGE_FILE = "merged-coverage.ec";
   private ExecFileLoader execFileLoader;
+  private File dstFile;
 
   public SpoonCoverageMerger() {
     this.execFileLoader = new ExecFileLoader();
   }
+  
+  public SpoonCoverageMerger(File dstFile) {
+  	this();
+  	this.dstFile = dstFile;
+  }
+  
+  
 
   public void mergeCoverageFiles(Set<String> serials, File outputDirectory) throws IOException {
     Collection<String> sanitizeSerials = transform(serials, toSanitizeSerials());
@@ -38,5 +46,10 @@ final class SpoonCoverageMerger {
         return sanitizeSerial(serials);
       }
     };
+  }
+  
+  public void loadFile(File file) throws IOException {
+  	execFileLoader.load(file);
+  	execFileLoader.save(dstFile, false); // todo: save at the last load
   }
 }

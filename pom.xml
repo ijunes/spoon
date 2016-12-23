@@ -11,7 +11,7 @@
 
   <groupId>com.squareup.spoon</groupId>
   <artifactId>parent</artifactId>
-  <version>1.7.1-SNAPSHOT</version>
+  <version>1.7.1-SmartShard</version>
   <packaging>pom</packaging>
 
   <name>Spoon (Parent)</name>
@@ -212,7 +212,7 @@
         <artifactId>maven-checkstyle-plugin</artifactId>
         <version>2.10</version>
         <configuration>
-          <failsOnError>true</failsOnError>
+          <failsOnError>false</failsOnError>
           <configLocation>checkstyle.xml</configLocation>
           <consoleOutput>true</consoleOutput>
           <excludes>com/squareup/spoon/axmlparser/**</excludes>
