@@ -9,9 +9,9 @@ public class TestComparator implements Comparator<TestIdentifier> {
     int result = -1;
     
     // test case that has empty method name has high priority
-    if (arg0.getTestName().length() == 0) {
+    if (arg0.getTestName().length() == 0 && arg1.getTestName().length() != 0) {
     	result = -1;
-    } else if (arg1.getTestName().length() == 0) {
+    } else if (arg1.getTestName().length() == 0 && arg0.getTestName().length() != 0) {
     	result = 1;
     } else if (arg0.getUsedTime() < arg1.getUsedTime()) {
       result = 1;

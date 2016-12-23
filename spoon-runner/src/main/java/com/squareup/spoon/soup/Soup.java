@@ -166,8 +166,8 @@ public class Soup {
   		} 
   		
   		if ((methodTestFollowClassTest || bucket.getTotalTime() >= bucketAvgTime) && bucketIdx < bucketNum - 1) {
-  			/* logDebug(debug, "Bucket %d used time: %f(agvTime: %f)", bucketIdx, bucket.getTotalTime(), 
-  					bucketAvgTime); */
+  			/*logDebug(debug, "Bucket %d used time: %f(agvTime: %f)", bucketIdx, bucket.getTotalTime(), 
+  					bucketAvgTime);*/ 
   			
   			bucketIdx++;
   			remainTime -= bucket.getTotalTime();
@@ -338,7 +338,7 @@ public class Soup {
   private void scanReportFile(File file) {
     //String pattern = "testcase\\s+name=\"(\\S+)\"\\s+classname=\"(\\S+)\"\\s+time=\"(\\S+)\"";
   	//TODO: classname and name may not be in order of `name=... classname=...`
-    String pattern = "testcase\\s+classname=\"(\\S+)\"\\s+name=\"(\\S+)\"\\s+time=\"(\\S+)\"";
+    String pattern = "testcase\\s+classname=\"(\\S+)\"\\s+name=\"([^\"]+)\"\\s+time=\"(\\S+)\"";
     Pattern p = Pattern.compile(pattern);
 
     try {
@@ -351,14 +351,27 @@ public class Soup {
         Matcher matcher = p.matcher(line);
         if (matcher.find()) {
           TestIdentifier ti = new TestIdentifier(matcher.group(1), matcher.group(2));
+          boolean isDataProviderTest = false;
+          if (ti.getTestName().contains("[")) {
+          	// DataProviderTest
+          	isDataProviderTest = true;
+          }
+          
           float usedTime = Float.parseFloat(matcher.group(3));
-          //logDebug(debug, "Found test: " + ti);
+          // logDebug(debug, "Found test: " + ti);
           for (TestIdentifier t : tests) {
             // logDebug(debug, t + " === " + ti);
             if (t.equals(ti)) {
               logDebug(debug, "setting " + t + " used time to " + usedTime);
               totalTime = totalTime - t.getUsedTime() + usedTime;
               t.setUsedTime(usedTime);
+              break;
+            } else if (isDataProviderTest && ti.getClassName().equals(t.getClassName())) {
+            	float newUsedTime = t.getUsedTime() + usedTime;
+              logDebug(debug, "adjust " + t + " used time to " + newUsedTime);
+            	t.setUsedTime(newUsedTime);
+            	totalTime += usedTime;
+              break;
             }
           }
         }
